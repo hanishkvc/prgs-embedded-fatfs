@@ -1,4 +1,7 @@
 
+//#define TESTFATUC_BUFSIZE_SUB 0
+#define TESTFATUC_BUFSIZE_SUB (FATFSCLUS_MAXSIZE*2+11)
+
 int testfatuc_fileextract(struct TFatFsUserContext *uc, 
       char *sFile, char *dFile)
 {
@@ -28,7 +31,8 @@ int testfatuc_fileextract(struct TFatFsUserContext *uc,
   fatfs_checkbuf_forloadfileclus(uc->fat, gDataBufSize);
   while(1)
   {
-    res=fatuc_fread(uc, fId, gDataBuf, gDataBufSize, gDataBufSize,
+    res=fatuc_fread(uc, fId, gDataBuf, gDataBufSize,
+      gDataBufSize-TESTFATUC_BUFSIZE_SUB,
       &nBuf, &dataRead);
     if(res != 0)
       break;
@@ -69,7 +73,8 @@ int testfatuc_checkreadspeed(struct TFatFsUserContext *uc,
   fatfs_checkbuf_forloadfileclus(uc->fat, gDataBufSize);
   while(1)
   {
-    res=fatuc_fread(uc, fId, gDataBuf, gDataBufSize, gDataBufSize,
+    res=fatuc_fread(uc, fId, gDataBuf, gDataBufSize,
+          gDataBufSize-TESTFATUC_BUFSIZE_SUB,
           &nBuf, &dataRead);
     if(res != 0)
       break;
@@ -103,7 +108,8 @@ int testfatuc_fatfsfile_checksum(struct TFatFsUserContext *uc, char *sFile)
   fatfs_checkbuf_forloadfileclus(uc->fat, gDataBufSize);
   while(1)
   {
-    res=fatuc_fread(uc, fId, gDataBuf, gDataBufSize, gDataBufSize,
+    res=fatuc_fread(uc, fId, gDataBuf, gDataBufSize, 
+          gDataBufSize-TESTFATUC_BUFSIZE_SUB,
           &nBuf, &dataRead);
     if(res != 0)
       break;
@@ -132,6 +138,67 @@ int testfatuc_fatfsfile_checksum(struct TFatFsUserContext *uc, char *sFile)
     printf("testfatuc:fatfsfile_checksum: [%s] => [%d]\n", sFile, cSum);
   else
     fprintf(stderr,"ERR:testfatuc:fatfsfile_checksum: [%s] failed\n", sFile);
+  return ret;
+}
+
+int testfatuc_fileseektest(struct TFatFsUserContext *uc, char *sFile)
+{
+  FILE *fDest;
+  uint32 dataRead;
+  int res, ret, resFW, fId, iCur;
+  uint8 *nBuf;
+  char dFile[64];
+  randT tRand;
+
+  printf("testfatuc:INFO: fileseektest [%s]\n",sFile);
+  if(fatuc_fopen(uc, sFile, &fId) != 0)
+  {
+    printf("testfatuc:ERROR:fileseektest: opening src [%s] file\n", sFile);
+    return -1;
+  }
+  ret = 0;
+  fatfs_checkbuf_forloadfileclus(uc->fat, gDataBufSize);
+  for(iCur=0;(iCur<4)&&(ret==0);iCur++)
+  {
+    pa_rand_getclipped(&tRand,uc->files[fId].fInfo.fileSize);  
+    fatuc_fseek(uc,fId,tRand.rand,FATUC_SEEKSET);
+    sprintf(dFile,"/tmp/%d.fatucseek",tRand.rand);
+    fDest = fopen(dFile, "w");
+    if(fDest == NULL)
+    {
+      perror("testfatuc:ERROR: opening dest file");
+      return -1;
+    }
+    else
+      printf("testfatuc:fileseektest:[%s]\n",dFile);
+    while(1)
+    {
+      res=fatuc_fread(uc, fId, gDataBuf, gDataBufSize,
+        gDataBufSize-TESTFATUC_BUFSIZE_SUB,
+        &nBuf, &dataRead);
+      if(res != 0)
+        break;
+#if DEBUG_TESTFAT > 15    
+      else
+        printf("testfatuc:INFO: fatuc_fread dataRead[%ld] fPos[%ld]\n", 
+          dataRead, uc->files[fId].fPos);
+#endif    
+      resFW=fwrite(nBuf, 1, dataRead, fDest);
+      if(resFW != dataRead)
+      {
+        perror("testfatuc:ERROR: less bytes written\n");
+	ret = -10;
+        break;
+      }
+    }
+    fclose(fDest);
+    if(res != -ERROR_FATFS_EOF)
+    {
+      ret = -10;
+      break;
+    }
+  }
+  fatuc_fclose(uc, fId);
   return ret;
 }
 

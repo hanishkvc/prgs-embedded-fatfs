@@ -1,12 +1,12 @@
 CC=$(CROSS)gcc
-CFLAGS = -Wall -O2 -I .
 CFLAGS = -Wall -g -I .
+CFLAGS = -Wall -O2 -I .
 C_FLAGS=
 arm-elf-C_FLAGS= -Wl,-elf2flt -D PRG_MODE_DM270
 CFLAGS += $($(CROSS)C_FLAGS)
 
-PORTACFILES=rwporta.c utilsporta.c
-PORTAHFILES=rwporta.h utilsporta.h errorporta.h
+PORTACFILES=rwporta.c utilsporta.c rand.c
+PORTAHFILES=rwporta.h utilsporta.h errorporta.h rand.h
 TESTPATH=/mnt/temp1
 INSTALLPATH=/hanishkvc/samples/fatfs
 arm-elf-INSTALLPATH=/experiments/src/forBoard24-27Oct2004/uClinux-dist-2003/prop
@@ -43,6 +43,7 @@ porta:
 install:
 	mv $(TESTFATS) $($(CROSS)INSTALLPATH)/
 	cp Makefile $($(CROSS)INSTALLPATH)/Disk16Make
+	cp hkvc-fatfs_verifyfileseektest.sh /tmp/
 
 clean:
 	rm $(TESTFATS) || /bin/true
@@ -92,7 +93,9 @@ f16M:
 	mkdir $(TESTPATH)/dir2/dir21
 	echo "0987654321" > $(TESTPATH)/dir2/dir21/reallyDIR21longfilename.log
 	dd if=/dev/urandom of=$(TESTPATH)/dir2/rand4.log bs=2048 count=4096 || /bin/true
+	echo "helo" >> $(TESTPATH)/dir2/rand4.log
 	dd if=/dev/zero of=$(TESTPATH)/dir2/zero4.log bs=1024 count=4096 || /bin/true
+	cp $(TESTPATH)/dir2/rand4.log /tmp/rand4.log
 	rm $(TESTPATH)/abc2.txt
 	rm $(TESTPATH)/abc3.txt
 	rm $(TESTPATH)/abc4.txt

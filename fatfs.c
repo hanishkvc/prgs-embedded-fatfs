@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v18Jan2005_2100
+ * v27Jan2005_1516
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -606,12 +606,12 @@ int fatfs32_getfatentry(struct TFat *fat, uint32 iEntry,
 
 int fatfs_getopticluslist_usefileinfo(struct TFat *fat, 
       struct TFileInfo *fInfo, struct TClusList *cl, int *clSize, 
-      uint32 *prevClus)
+      uint32 *fromClus)
 {
   uint32 iCL = 0, iCurClus, iPrevClus;
   int iRet;
 
-  if(*prevClus == 0)
+  if(*fromClus == 0)
   {
     cl[iCL].baseClus = fInfo->firstClus;
     iPrevClus = fInfo->firstClus;
@@ -619,8 +619,8 @@ int fatfs_getopticluslist_usefileinfo(struct TFat *fat,
   }
   else
   {
-    cl[iCL].baseClus = *prevClus;
-    iPrevClus = *prevClus;
+    cl[iCL].baseClus = *fromClus;
+    iPrevClus = *fromClus;
     cl[iCL].adjClusCnt = 0;
   }
   while(iCL < *clSize)
@@ -654,9 +654,9 @@ int fatfs_getopticluslist_usefileinfo(struct TFat *fat,
       if(iCL >= *clSize) 
       {
         /* we have used up all the cl so 
-         * call once again with updated *prevClus
+         * call once again with updated *fromClus
          */
-        *prevClus = iCurClus;
+        *fromClus = iCurClus;
         break;
       }
       cl[iCL].baseClus = iCurClus;
@@ -671,7 +671,7 @@ int fatfs_getopticluslist_usefileinfo(struct TFat *fat,
 int fatfs_loadfileallsec_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
       uint8 *buf, int32 bufLen, uint32 *totSecsRead)
 {
-  uint32 prevClus, noSecs, bytesRead;
+  uint32 fromClus, noSecs, bytesRead;
   struct TClusList cl[16];
   int resOCL, resGS, clSize, iCur;
   
@@ -681,12 +681,12 @@ int fatfs_loadfileallsec_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
     return -ERROR_INSUFFICIENTRESOURCE;
   }
   *totSecsRead = 0;
-  prevClus = 0;
+  fromClus = 0;
   do
   {
     clSize = 16; 
     resOCL = fatfs_getopticluslist_usefileinfo(fat, fInfo, cl, &clSize, 
-      &prevClus);
+      &fromClus);
     if((resOCL != 0) && (resOCL != -ERROR_TRYAGAIN))
       break;
     for(iCur=0; iCur < clSize; iCur++)
@@ -742,16 +742,9 @@ int fatfs_checkbuf_forloadfileclus(struct TFat *fat, uint32 bufLen)
   return 0;
 }
 
-/* * bufLen specifies the number of bytes to read and 
- *   it must be a multiple of clustersize in bytes 
- *   * Also this function reads begining from a cluster boundery
- *     (prevClus - the cluster to start reading) till a whole number 
- *     of clusters i.e clusters is the granularity of this function.
- * * It doesn't check if the passed buf can hold the specified
- *   number of bytes (bufLen)
- */
-int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
-      uint8 *buf, uint32 bufLen, uint32 *totalClusRead, uint32 *prevClus)
+int fatfs__loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
+      uint8 *buf, uint32 bytesToRead, uint32 *totalClusRead, 
+      uint32 *lastClusRead, uint32 *fromClus)
 {
   uint32 noSecs, bytesRead;
   int32 totalPosClus2Read, noClus2Read;
@@ -764,12 +757,13 @@ int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
  
   bOutOfMemory = 0;
   *totalClusRead = 0;
-  totalPosClus2Read = bufLen/(fat->bs.secPerClus*fat->bs.bytPerSec);
+  *lastClusRead = *fromClus;
+  totalPosClus2Read = bytesToRead/(fat->bs.secPerClus*fat->bs.bytPerSec);
   do
   {
     clSize = 16; 
     resOCL = fatfs_getopticluslist_usefileinfo(fat, fInfo, cl, &clSize, 
-      prevClus);
+      fromClus);
     if((resOCL != 0) && (resOCL != -ERROR_TRYAGAIN))
       break;
     bOutOfMemory = 0;
@@ -781,7 +775,7 @@ int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
       else
       {
         noClus2Read = (cl[iCur].adjClusCnt+1)+totalPosClus2Read;
-        *prevClus = cl[iCur].baseClus+noClus2Read;
+        *fromClus = cl[iCur].baseClus+noClus2Read;
         bOutOfMemory = 1;
       }
       *totalClusRead += noClus2Read;
@@ -794,6 +788,11 @@ int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
         printf("DEBUG:fatfs:load: bd_get_sectors failed\n");
         return resGS;
       }
+      else
+      {
+        if(noClus2Read)
+          *lastClusRead = cl[iCur].baseClus+(noClus2Read-1);
+      }
       buf += bytesRead; 
     }
   }while((resOCL!=0) && !bOutOfMemory);
@@ -802,6 +801,22 @@ int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
   else if(resOCL != 0)
     return resOCL;
   return 0;
+}
+
+/* * bufLen specifies the length of the buffer as well as the number of 
+ *   bytes to read and it must be a multiple of clustersize in bytes 
+ *   *As bufLen is bufLen as well as bytesToRead no need to check if the 
+ *    passed buf can hold the specified number of bytes 
+ * * Also this function reads begining from a cluster boundery
+ *   (fromClus - the cluster to start reading) till a whole number 
+ *   of clusters i.e clusters is the granularity of this function.
+ */
+int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
+      uint8 *buf, uint32 bufLen, uint32 *totalClusRead, uint32 *fromClus)
+{
+  uint32 lastClusRead;
+  return fatfs__loadfileclus_usefileinfo(fat, fInfo, buf, bufLen, totalClusRead,
+           &lastClusRead, fromClus);
 }
 
 int fatuc_init(struct TFatFsUserContext *uc, struct TFat *fat)
@@ -1052,7 +1067,8 @@ int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId)
       *fId = iCur;
       uc->files[*fId].state = FATUC_USED;
       uc->files[*fId].fPos = 0;
-      uc->files[*fId].prevClus = 0;
+      uc->files[*fId].fromClus = 0;
+      uc->files[*fId].offInFromClus = 0;
       break;
     }
   }
@@ -1061,60 +1077,57 @@ int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId)
   return fatuc_getfileinfo(uc,cFile,&uc->files[*fId].fInfo,&prevPos);
 }
 
-int fatuc_fseek(struct TFatFsUserContext *uc, int fId,
-      int32 offset, int whence)
+#define FATUC_TEMP_CLSIZE 64
+/*
+ * FIXME: In worst case if a file is spread such that its FAT Entries are
+ * spread across FATTable parts in a FAT_PARTLYMAPPED situation, this could lead
+ * to the required FATTable parts getting loaded many times.
+ *
+ * This could be avoided by keeping the OptiClusList of a file as part of the
+ * TFatFile struct. Thus when the file is opened, we could read the OptiClusList
+ * once into memory and use this for subsequent accesses. However here as there
+ * is a limit on the size of the OptiClusList kept in TFatFile, if some files
+ * are fragmented badly to have more fragments than the number of entries in this
+ * OptiClusList they cann't be worked on (may be the part of it for which info
+ * is loaded will be supported but not beyond that).
+ *
+ */
+int fatuc__fposChangedUpdate(struct TFatFsUserContext *uc, int fId, int oldFPos)
 {
-  if(uc->files[fId].state != FATUC_USED)
-    return -ERROR_INVALID;
-  if(whence == FATUC_SEEKSET)
-  {
-    uc->files[fId].fPos = offset;
-    return 0;
-  }
-  if(whence == FATUC_SEEKCUR)
-  {
-    uc->files[fId].fPos += offset;
-    return 0;
-  }
-  if(whence == FATUC_SEEKEND)
-  {
-    uc->files[fId].fPos = uc->files[fId].fInfo.fileSize + offset;
-    return 0;
-  }
-  return -ERROR_INVALID;
-}
+  int clSize,ret,clusSize,iCur;
+  struct TClusList cl[FATUC_TEMP_CLSIZE];
+  int newClusNo, curClusNo, diffClus, startActClus;
 
-#define FATUC_READ_CLSIZE 64
-int fatuc_fread(struct TFatFsUserContext *uc, int fId,
-      uint8 *buf, uint32 bufLen, uint32 bytesToRead, 
-      uint8 **atBuf, uint32 *bytesRead)
-{
-  int clSize,ret,clusSize, iCur;
-  int startClus, startOff, curClus, diffClus, startActClus;
-  struct TClusList cl[FATUC_READ_CLSIZE];
-  uint32 totalClusRead;
-
-  if(uc->files[fId].state != FATUC_USED)
-    return -ERROR_INVALID;
-  if(uc->files[fId].fPos >= uc->files[fId].fInfo.fileSize)
-    return -ERROR_FATFS_EOF;
+#if 0
+  pa_printstr("DEBUG:fatfs:fatuc__fposChangedUpdate: called\n");
+#endif
   clusSize = uc->fat->bs.bytPerSec * uc->fat->bs.secPerClus;
-  startClus = (uc->files[fId].fPos/clusSize)+1; /* note starts with 1 */
-  startOff = uc->files[fId].fPos%clusSize;
-  curClus = 0;
+  newClusNo = (uc->files[fId].fPos/clusSize)+1; /* note starts with 1 */
+  uc->files[fId].offInFromClus = uc->files[fId].fPos%clusSize;
+  curClusNo = (oldFPos/clusSize)+1;
+  if(newClusNo == curClusNo)
+    return 0;
+  /* start from begining if fPos has gone backwards 
+   * cas FATTable is single linked
+   */
+  if(newClusNo < curClusNo)
+  {
+    curClusNo = 0;
+    uc->files[fId].fromClus = 0;
+  }
+  else
+    curClusNo--;
   startActClus = 0;
   do{
-    clSize = FATUC_READ_CLSIZE;
-    /* Lazy logic written assuming fseek as been used always */
-    uc->files[fId].prevClus = 0;
+    clSize = FATUC_TEMP_CLSIZE;
     ret=fatfs_getopticluslist_usefileinfo(uc->fat, &uc->files[fId].fInfo,
-       cl, &clSize, &uc->files[fId].prevClus);
+       cl, &clSize, &uc->files[fId].fromClus);
     if((ret != 0) && (ret != -ERROR_TRYAGAIN))
       return ret;
     for(iCur=0;iCur<clSize;iCur++)
     {
-       curClus += cl[iCur].adjClusCnt+1;
-       diffClus = curClus - startClus;
+       curClusNo += cl[iCur].adjClusCnt+1;
+       diffClus = curClusNo - newClusNo;
        if(diffClus >= 0)
        {
          startActClus = (cl[iCur].baseClus + cl[iCur].adjClusCnt) - diffClus;
@@ -1123,24 +1136,98 @@ int fatuc_fread(struct TFatFsUserContext *uc, int fId,
     }
   }while((ret==-ERROR_TRYAGAIN) && (startActClus==0));
   if(startActClus == 0)
-    return -ERROR_NOMORE;
-  uc->files[fId].prevClus = startActClus;
-  iCur = ((bytesToRead-1+startOff+clusSize)/clusSize)*clusSize;
-  if(iCur > bufLen)
+    return -ERROR_NOMORE; /* Mostly return EOF reached */
+  uc->files[fId].fromClus = startActClus;
+  return 0;
+}
+
+int fatuc_fseek(struct TFatFsUserContext *uc, int fId,
+      int32 offset, int whence)
+{
+  int retVal = -ERROR_INVALID;
+  uint32 prevFPos;
+
+  prevFPos = uc->files[fId].fPos;
+  if(uc->files[fId].state != FATUC_USED)
+    return -ERROR_INVALID;
+  if(whence == FATUC_SEEKSET)
+  {
+    uc->files[fId].fPos = offset;
+    retVal = 0;
+  }
+  if(whence == FATUC_SEEKCUR)
+  {
+    uc->files[fId].fPos += offset;
+    retVal = 0;
+  }
+  if(whence == FATUC_SEEKEND)
+  {
+    uc->files[fId].fPos = uc->files[fId].fInfo.fileSize + offset;
+    retVal = 0;
+  }
+  if(retVal == 0)
+    return fatuc__fposChangedUpdate(uc, fId, prevFPos);
+  return retVal;
+}
+
+/*
+ * bufLen requires to be large enough to accomodate bytesToRead
+ * plus 2 clusSize (rather FATFSCLUS_MAXSIZE). Because if fPos
+ * is unaligned to cluster boundry then additional space is required
+ * at the begining and If fPos+bytesToRead is unaligned to cluster
+ * boundry then additional space is required at the end. So to be
+ * safe in all conditions its better to have additional space of
+ * 2*FATFSCLUS_MAXSIZE.
+ * *This restriction is there because the passed buf is used directly
+ *  by the lower block level driver to fill data using DMA/xxxx available 
+ *  and no intermediate buffers are used anywhere.
+ * However if access will be made such that things are always aligned
+ * then there is no need for this additional space
+ */
+int fatuc_fread(struct TFatFsUserContext *uc, int fId,
+      uint8 *buf, uint32 bufLen, uint32 bytesToRead, 
+      uint8 **atBuf, uint32 *bytesRead)
+{
+  int ret,clusSize, bytAl;
+  uint32 totalClusRead, lastClusRead;
+
+  if(uc->files[fId].state != FATUC_USED)
+    return -ERROR_INVALID;
+  if(uc->files[fId].fPos >= uc->files[fId].fInfo.fileSize)
+    return -ERROR_FATFS_EOF;
+  clusSize = uc->fat->bs.bytPerSec * uc->fat->bs.secPerClus;
+
+  bytAl = ((bytesToRead-1+uc->files[fId].offInFromClus+clusSize)/clusSize)*clusSize;
+  if(bytAl > bufLen)
     return -ERROR_INSUFFICIENTRESOURCE;
-  ret=fatfs_loadfileclus_usefileinfo(uc->fat, &uc->files[fId].fInfo, 
-      buf,  iCur, &totalClusRead, &uc->files[fId].prevClus);
+  ret=fatfs__loadfileclus_usefileinfo(uc->fat, &uc->files[fId].fInfo, 
+      buf, bytAl, &totalClusRead, &lastClusRead, &uc->files[fId].fromClus);
   if((ret!=0)&&(ret!=-ERROR_TRYAGAIN))
     return ret;
-  *atBuf = buf + startOff;
-  *bytesRead = totalClusRead*clusSize-startOff;
+  *atBuf = buf + uc->files[fId].offInFromClus;
+  *bytesRead = totalClusRead*clusSize-uc->files[fId].offInFromClus;
   if(*bytesRead < bytesToRead)
   {
+    /* EOF reached */
+    if((uc->files[fId].fPos+*bytesRead) >= (uc->files[fId].fInfo.fileSize))
+    {
+      *bytesRead = uc->files[fId].fInfo.fileSize - uc->files[fId].fPos;
+      uc->files[fId].fPos += *bytesRead; 
+      return 0;
+    }
     pa_printstrErr("???:fatfs:fatuc_read: bytesRead<bytesToRead CANT OCCUR\n");
     return -ERROR_UNKNOWN;
   }
   *bytesRead = bytesToRead;
   uc->files[fId].fPos += bytesToRead;
+  if((uc->files[fId].fPos%clusSize) != 0)
+  {
+    /* As only part of the lastClusRead above is used, 
+     * the remaining part requires to be read again next time, so forcing
+     */
+    uc->files[fId].fromClus = lastClusRead;
+    uc->files[fId].offInFromClus = uc->files[fId].fPos%clusSize;
+  }
   return 0;
 }
 
@@ -1150,7 +1237,7 @@ int fatuc_fclose(struct TFatFsUserContext *uc, int fId)
   {
     uc->files[fId].state = FATUC_FREE;
     uc->files[fId].fPos = 0;
-    uc->files[fId].prevClus = -1;
+    uc->files[fId].fromClus = -1;
     return 0;
   }
   return -ERROR_INVALID;

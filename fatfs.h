@@ -8,7 +8,7 @@
 #ifndef _FATFS_H_
 #define _FATFS_H_
 
-#define FATFS_LIBVER "v18Jan2005_2115"
+#define FATFS_LIBVER "v27Jan2005_2106"
 
 #include <rwporta.h>
 #include <bdk.h>
@@ -140,7 +140,7 @@ struct TFatFile
 	struct TFileInfo fInfo;
 	uint32 fPos;
 	int state;
-	uint32 prevClus;
+	uint32 fromClus,offInFromClus;
 };
 
 struct TFatFsUserContext
@@ -175,14 +175,14 @@ int fatfs32_getfatentry(struct TFat *fat, uint32 iEntry,
       uint32 *iValue, uint32 *iActual);
 int fatfs_getopticluslist_usefileinfo(struct TFat *fat, 
       struct TFileInfo *fInfo, struct TClusList *cl, int *clSize, 
-      uint32 *prevClus);
+      uint32 *fromClus);
 int fatfs_loadfileallsec_usefileinfo(struct TFat *fat, 
       struct TFileInfo *fInfo, uint8 *buf, int32 bufLen, uint32 *totSecsRead);
 /* Call this before calling loadfileclus to verify if any 
    empty space can occur at end of the given buffer */
 int fatfs_checkbuf_forloadfileclus(struct TFat *fat, uint32 bufLen);
 int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
-      uint8 *buf, uint32 bufLen, uint32 *totalClusRead, uint32 *prevClus);
+      uint8 *buf, uint32 bufLen, uint32 *totalClusRead, uint32 *fromClus);
 int fatfs_cleanup(struct TFat *fat);
 
 /* From fsutils */

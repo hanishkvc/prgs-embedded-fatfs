@@ -5,7 +5,7 @@
  * 
  */
 
-#define TESTFAT_PRGVER "v18Jan2005_2102"
+#define TESTFAT_PRGVER "v27Jan2005_2106"
 
 #include <sched.h>
 
@@ -17,6 +17,7 @@
 #include <fatfs.h>
 #include <partk.h>
 #include <linuxutils.h>
+#include <rand.h>
 
 #define TESTFAT_BDBM_SECS 80000
 
@@ -372,7 +373,7 @@ int main(int argc, char **argv)
     printf("(l)dirListing (e)fileExtract (E)Exit (b)BlockDev speed\n");
     printf("(c)chDir (f)checkFile (R)Reset (s)readspeed (S)readspeedALL\n");
     printf("(X)normalfsfile checksum (Y)fatfsfile checksum\n");
-    printf("(U)FatUserContext Funcs\n");
+    printf("(U)FatUserContext Funcs (k)seektest\n");
     cCur = fgetc(stdin); fgetc(stdin);
     switch(cCur)
     {
@@ -492,6 +493,14 @@ int main(int argc, char **argv)
         gFatUCFuncs = 0;
         printf("testfat:INFO: FatUserContext functions DESelected\n");
       }
+      break;
+    case 'k':
+      printf("enter file for fseek test:");
+      scanf("%s",sBuf1);
+      fgetc(stdin);
+      lu_starttime(&gTFtv1);
+      testfatuc_fileseektest(&gUC, sBuf1);
+      lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"seekTest");
       break;
     case 'E':
       bExit = 1;
