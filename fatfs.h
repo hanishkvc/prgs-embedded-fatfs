@@ -20,12 +20,12 @@
 #define FATDIRENTRY_SIZE 32
 #define FATDIRENTRYNAME_SIZE 11
 #define FATDIRENTRYLFN_SIZE 255
-#define FILEINFONAME_SIZE (FATDIRENTRYNAME_SIZE+1)
-#define FILEINFOLFN_SIZE (FATDIRENTRYLFN_SIZE+1)
+#define FATFSNAME_SIZE (FATDIRENTRYNAME_SIZE+1)
+#define FATFSLFN_SIZE (FATDIRENTRYLFN_SIZE+1)
 #define FATDIRENTRYLFN_PARTIALCHARS 13
+#define FATFSPATHNAME_MAXSIZE (10*FATFSLFN_SIZE)
 
 #define FATFSUSERCONTEXTDIRBUF_MAXSIZE (2048*FATDIRENTRY_SIZE)
-
 #define FATFS_DIRSEP '\\'
 
 #define FATATTR_READONLY 0x01
@@ -82,7 +82,7 @@ struct TFatBootSector
 
 struct TFileInfo 
 {
-  uint8 name[FILEINFONAME_SIZE], lfn[FILEINFOLFN_SIZE], 
+  uint8 name[FATFSNAME_SIZE], lfn[FATFSLFN_SIZE], 
     attr, ntRes, crtTimeTenth;
   uint16 crtTime, crtDate, lastAccDate, wrtTime, wrtDate;
   uint32 firstClus, fileSize;
@@ -105,8 +105,12 @@ struct TFatFsUserContext
 {
   uint8 *curDirBuf;
   uint32 curDirBufLen;
-  uint32 dirBuf[FATFSUSERCONTEXTDIRBUF_MAXSIZE/4];
-  /* future when dynamic uint32 dirBufLen; */
+  uint8 *tempDirBuf;
+  uint32 tempDirBufLen;
+  uint32 dirBuf1[FATFSUSERCONTEXTDIRBUF_MAXSIZE/4];
+  uint32 dirBuf2[FATFSUSERCONTEXTDIRBUF_MAXSIZE/4];
+  uint8 pName[FATFSPATHNAME_MAXSIZE];
+  uint8 fName[FATFSLFN_SIZE];
 };
 
 extern struct TFatBootSector gFB;
@@ -118,12 +122,24 @@ int fatfs_loadfat();
 int fatfs16_loadrootdir();
 int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
   struct TFileInfo *fInfo, uint32 *prevPos);
-int fatfs16_getopticluslist_usefileinfo(struct TFileInfo fInfo, struct TClusList *cl, int *clSize, uint32 *prevClus);
-int fatfs_loadfilefull_usefileinfo(struct TFileInfo fInfo, uint8 *buf, uint32 bufLen);
+int fatfs16_getopticluslist_usefileinfo(struct TFileInfo fInfo, 
+  struct TClusList *cl, int *clSize, uint32 *prevClus);
+int fatfs_loadfileallsec_usefileinfo(struct TFileInfo fInfo, uint8 *buf, 
+  uint32 bufLen);
+int fatfs_loadfilefull_usefileinfo(struct TFileInfo fInfo, uint8 *buf, 
+  uint32 bufLen);
 int fatfs_cleanup();
 
-int fatfs_uc_init(struct TFatFsUserContext *uc);
-int fatfs_changedir(struct TFatFsUserContext *uc, char *fDirName);
+/* Note for THREADED prgs:  A given user context shouldn't be actively 
+ * used by fatuc_xxx functions at the same time
+ */
+void fatuc_updatetempdirbufinfo(struct TFatFsUserContext *uc);
+int fatuc_changedir(struct TFatFsUserContext *uc, char *fDirName,
+  int bUpdateCurDir);
+int fatuc_init(struct TFatFsUserContext *uc);
+int fatuc_chdir(struct TFatFsUserContext *uc, char *fDirName);
+int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,  
+  struct TFileInfo *fInfo, uint32 *prevPos);
 
 #endif
 

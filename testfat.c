@@ -13,7 +13,6 @@
 #include <part.h>
 
 struct TFileInfo fInfo;
-struct TClusList cl[2];
 struct TPartInfo pInfo;
 struct TFatFsUserContext uc;
 
@@ -31,24 +30,57 @@ int testfat_dirlisting(char *dir)
   }
 #endif
   printf("************* dir[%s] listing ******************\n", dir);
-  if(fatfs_changedir(&uc, dir) != 0)
+  if(fatuc_chdir(&uc, dir) != 0)
     return -1;
   prevPos = 0;
-  fInfo.lfn[0] = 0;
-  while(fatfs_getfileinfo_fromdir("", uc.curDirBuf, uc.curDirBufLen, 
-    &fInfo, &prevPos) == 0)
+  while(fatuc_getfileinfo(&uc, "", &fInfo, &prevPos) == 0)
   {
     printf("testfat: File[%s:%s] attr[0x%x] firstClus:Size[%ld:%ld]\n",
       fInfo.name, fInfo.lfn, fInfo.attr, fInfo.firstClus, fInfo.fileSize);
-    fInfo.lfn[0] = 0;
+  }
+  return 0;
+}
+
+#define CLUSLIST_SIZE 1
+
+int testfat_checkfile(char *cFile)
+{
+  int clSize, iCur, res;
+  uint32 prevClus, prevPos;
+  struct TClusList cl[CLUSLIST_SIZE];
+
+  printf("************* Check file logic ******************\n");
+  prevPos = 0;
+  res = fatfs_getfileinfo_fromdir(cFile, gFat.RDBuf, gFat.rdSize, &fInfo, &prevPos);
+  if(res == 0)
+  {
+    printf("testfat: File[%s][%s] attr[0x%x] firstClus[%ld] fileSize[%ld]\n",
+      fInfo.name, fInfo.lfn, fInfo.attr, fInfo.firstClus, fInfo.fileSize);
+    prevClus = 0;
+    do
+    {
+      if(prevClus != 0)
+        printf("info:testfat: file as more clusters\n");
+      clSize = CLUSLIST_SIZE; 
+      res = fatfs16_getopticluslist_usefileinfo(fInfo, cl, &clSize, &prevClus);
+      for(iCur=0; iCur < clSize; iCur++)
+      {
+        printf("[%s] Optimised ClusList baseClus[%ld] adjClusCnt[%ld] prevClus[%ld]\n",
+          fInfo.name, cl[iCur].baseClus, cl[iCur].adjClusCnt, prevClus);
+      }
+    }while(res != 0);
+  }
+  else
+  {
+    printf("testfat: file [%s] not found \n", cFile);
+    return -1;
   }
   return 0;
 }
 
 int main(int argc, char **argv)
 {
-  int clSize, iCur, res, baseSec;
-  uint32 prevClus, prevPos, tempT;
+  uint32  baseSec, tempT;
   struct timeval tv1, tv2;
 
   gettimeofday(&tv1, NULL);
@@ -72,39 +104,15 @@ int main(int argc, char **argv)
     bd_cleanup();
     return -1;
   }
-  fatfs_uc_init(&uc);
+  fatuc_init(&uc);
 
   /*** check file logic ***/
   if(argc > 2)
-  {
-    printf("************* Check file logic ******************\n");
-    prevPos = 0;
-    res = fatfs_getfileinfo_fromdir(argv[2], gFat.RDBuf, gFat.rdSize, &fInfo, &prevPos);
-    if(res == 0)
-    {
-      printf("testfat: File[%s][%s] attr[0x%x] firstClus[%ld] fileSize[%ld]\n",
-        fInfo.name, fInfo.lfn, fInfo.attr, fInfo.firstClus, fInfo.fileSize);
-      prevClus = 0;
-      do
-      {
-        if(prevClus != 0)
-          printf("info:testfat: file as more clusters\n");
-        clSize = 1; 
-        res = fatfs16_getopticluslist_usefileinfo(fInfo, cl, &clSize, &prevClus);
-        for(iCur=0; iCur < clSize; iCur++)
-        {
-          printf("[%s] Optimised ClusList baseClus[%ld] adjClusCnt[%ld] prevClus[%ld]\n",
-            fInfo.name, cl[iCur].baseClus, cl[iCur].adjClusCnt, prevClus);
-        }
-      }while(res != 0);
-    }
-    else
-      printf("testfat: file [%s] not found \n", argv[2]);
-  }
+    testfat_checkfile(argv[2]);
 
   /*** interactive commands ***/
   if((argc > 4) && (argv[3][0] == 'y'))
-  testfat_dirlisting(argv[4]);
+    testfat_dirlisting(argv[4]);
 
   /*** cleanup ***/
   fatfs_cleanup();
