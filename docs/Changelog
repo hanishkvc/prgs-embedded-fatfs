@@ -2,12 +2,39 @@ Changelog - fatfs
 C Hanish Menon <hanishkvc>
 ---------------------------
 
-20july2004-2300 (what I remember now)
-* Added support for reading files with clusSize granularity.
+22july2004
+* Made testfat functions use uc pointer as one of their arguments.
+  So that we can test/work with multiple fat filesystems in a given run.
+
 
 21july2004-2200 (what I remember now)
+* Interactive menu added to testfat
+* Partition support in loadfile functions (i.e adding used partitions baseSec)
 * Updated the logic such that they no longer use global structures instead 
   * all fatfs calls use a TFat structure which inturn gets its buffers
     set from a TFatBuffers structure defined by user.
   * and all fatuc calls use the TFatFsUserContext structure which inturn
     as a pointer to the TFat it is using.
+
+
+20july2004-2300 (what I remember now)
+* Added support for reading files with clusSize granularity (loadfileclus).
+  Also a separate function is provided so that the application can verify 
+  if the buffer it has is ok with this loadfileclus function.
+* Added some utility functions for strcpy, memcpy, token parsing
+* current path string is maintained in UserContext
+* each logic of testfat is timed with added helper routines
+* File extraction logic added to testfat
+* new dirlisting (inefficient(toShowOthersHowItCouldBe)) logic added
+
+
+
+ToDo
+------
+* Provide util function for strcmp
+* make blockdev data and functions part of a struct and have it embedded in
+  TFat structure.
+* Remove the forced Unicode to Ascii string conversion in getfileinfo
+  and provide routine to convert given ascii string to unicode, so that
+  we can always maintain unicode string in lfn of TFileInfo.
+

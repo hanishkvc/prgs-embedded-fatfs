@@ -43,7 +43,7 @@ int fatfs_loadbootsector(struct TFat *fat)
   int CountOfClusters, res;
   uint8 *pCur;
   uint32 tVerify;
-#if (DEBUG_PRINT_FATFS > 10)
+#ifdef DEBUG_PRINT_FATFS_BOOTSEC
   uint8 tBuf[32];
 #endif
 
@@ -76,7 +76,7 @@ int fatfs_loadbootsector(struct TFat *fat)
   fat->bs.rootClus = buffer_read_uint32_le(&pCur);
   fat->bs.fsInfo = buffer_read_uint16_le(&pCur);
 
-#if (DEBUG_PRINT_FATFS > 10)
+#ifdef DEBUG_PRINT_FATFS_BOOTSEC
   printf("OEMName [%s] BytPerSec [%d] SecPerClus[%d]\n", 
     buffer_read_string_noup((fat->BBuf+3),8,tBuf,32),fat->bs.bytPerSec,fat->bs.secPerClus);
   printf("TotSec16 [%d] TotSec32 [%ld]\n", 
@@ -113,7 +113,7 @@ int fatfs_loadbootsector(struct TFat *fat)
   {
     pCur = fat->BBuf+67;
     fat->bs.volID = buffer_read_uint32_le(&pCur);
-#if (DEBUG_PRINT_FATFS > 10)
+#ifdef DEBUG_PRINT_FATFS_BOOTSEC
     printf("FatSz32[%ld] ExtFlags[0x%x] FSVer[0x%x] RootClus[%ld] FSInfo[%d]\n",
       fat->bs.fatSz32, fat->bs.extFlags, fat->bs.fsVer, fat->bs.rootClus, fat->bs.fsInfo);
     printf("BootSig[0x%x] VolID[0x%lx] VolLab[%11s] FilSysType [%8s]\n",
@@ -130,7 +130,7 @@ int fatfs_loadbootsector(struct TFat *fat)
     */
     pCur = fat->BBuf+39;
     fat->bs.volID = buffer_read_uint32_le(&pCur);
-#if (DEBUG_PRINT_FATFS > 10)
+#ifdef DEBUG_PRINT_FATFS_BOOTSEC
     printf("BootSig[0x%x] VolID[0x%lx] VolLab[%11s] FilSysType [%8s]\n",
       *BS_16BootSig(fat->BBuf), fat->bs.volID, 
       buffer_read_string_noup((fat->BBuf+43),11,tBuf,32),

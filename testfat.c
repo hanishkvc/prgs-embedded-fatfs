@@ -15,7 +15,7 @@
 
 struct TFat fat1;
 struct TFatBuffers fat1Buffers;
-struct TFatFsUserContext uc;
+struct TFatFsUserContext gUC;
 struct TFileInfo fInfo;
 struct TPartInfo pInfo;
 #define DATABUF_SIZE (FATFSCLUS_MAXSIZE*10)
@@ -45,12 +45,12 @@ void testfat_stoptimedisp(char *sPrompt)
   }
 }
 
-int testfat_rootdirlisting()
+int testfat_rootdirlisting(struct TFatFsUserContext *uc)
 {
   uint32 prevPos;
   printf("************* rootdir listing ******************\n");
   prevPos = 0;
-  while(fatfs_getfileinfo_fromdir("", uc.fat->RDBuf, uc.fat->rdSize, 
+  while(fatfs_getfileinfo_fromdir("", uc->fat->RDBuf, uc->fat->rdSize, 
     &fInfo, &prevPos) == 0)
   {
     printf("testfat: File[%s] attr[0x%x] firstClus:Size[%ld:%ld]\n",
@@ -59,11 +59,11 @@ int testfat_rootdirlisting()
   return 0;
 }
 
-int testfat_dirlisting(char *dir)
+int testfat_dirlisting(struct TFatFsUserContext *uc, char *dir)
 {
   uint32 prevPos;
   printf("************* dir[%s][%s] listing ******************\n", 
-    uc.sCurDir,dir);
+    uc->sCurDir,dir);
 #if 0
   if(fatuc_chdir(&uc, dir) != 0)
     return -1;
@@ -77,7 +77,7 @@ int testfat_dirlisting(char *dir)
   prevPos = 0;
   if(strcmp(dir,".") == 0)
     dir[0] = 0;
-  while(fatuc_getfileinfo(&uc, dir, &fInfo, &prevPos) == 0)
+  while(fatuc_getfileinfo(uc, dir, &fInfo, &prevPos) == 0)
   {
     printf("testfat: File[%s:%s] attr[0x%x] firstClus:Size[%ld:%ld]\n",
       fInfo.name, fInfo.lfn, fInfo.attr, fInfo.firstClus, fInfo.fileSize);
@@ -88,7 +88,7 @@ int testfat_dirlisting(char *dir)
 
 #define CLUSLIST_SIZE 1
 
-int testfat_checkfile(char *cFile)
+int testfat_checkfile(struct TFatFsUserContext *uc, char *cFile)
 {
   int clSize, iCur, res;
   uint32 prevClus, prevPos;
@@ -96,7 +96,7 @@ int testfat_checkfile(char *cFile)
 
   printf("************* Check file logic ******************\n");
   prevPos = 0;
-  res = fatuc_getfileinfo(&uc, cFile, &fInfo, &prevPos);
+  res = fatuc_getfileinfo(uc, cFile, &fInfo, &prevPos);
   if(res == 0)
   {
     printf("testfat: File[%s][%s] attr[0x%x] firstClus[%ld] fileSize[%ld]\n",
@@ -105,7 +105,7 @@ int testfat_checkfile(char *cFile)
     do
     {
       clSize = CLUSLIST_SIZE; 
-      res = fatfs16_getopticluslist_usefileinfo(uc.fat, &fInfo, cl, &clSize, 
+      res = fatfs16_getopticluslist_usefileinfo(uc->fat, &fInfo, cl, &clSize, 
         &prevClus);
       for(iCur=0; iCur < clSize; iCur++)
       {
@@ -122,7 +122,7 @@ int testfat_checkfile(char *cFile)
   return 0;
 }
 
-int testfat_fileextract(char *sFile, char *dFile)
+int testfat_fileextract(struct TFatFsUserContext *uc, char *sFile, char *dFile)
 {
   FILE *fDest;
   uint32 prevPos, prevClus, dataClusRead;
@@ -135,24 +135,24 @@ int testfat_fileextract(char *sFile, char *dFile)
     return -1;
   }
   prevPos = 0;
-  if(fatuc_getfileinfo(&uc, sFile, &fInfo, &prevPos) != 0)
+  if(fatuc_getfileinfo(uc, sFile, &fInfo, &prevPos) != 0)
   {
     printf("testfat:ERROR: opening src [%s] file\n", sFile);
     return -1;
   }
   prevClus = 0;
   ret = -1;
-  fatfs_checkbuf_forloadfileclus(uc.fat, DATABUF_SIZE);
+  fatfs_checkbuf_forloadfileclus(uc->fat, DATABUF_SIZE);
   while(1)
   {
-    res=fatfs_loadfileclus_usefileinfo(uc.fat, &fInfo, dataBuf, DATABUF_SIZE, 
+    res=fatfs_loadfileclus_usefileinfo(uc->fat, &fInfo, dataBuf, DATABUF_SIZE, 
       &dataClusRead, &prevClus);
     if((res != 0)&&(res != -ERROR_TRYAGAIN))
       break;
     else
       printf("testfat:INFO: loadfileclus clusRead[%ld] prevClus[%ld]\n", 
         dataClusRead, prevClus);
-    bytesRead = dataClusRead*fat1.bs.secPerClus*uc.fat->bs.bytPerSec;
+    bytesRead = dataClusRead*uc->fat->bs.secPerClus*uc->fat->bs.bytPerSec;
     resFW=fwrite(dataBuf,1, bytesRead, fDest);
     if(resFW != bytesRead)
     {
@@ -195,7 +195,7 @@ int main(int argc, char **argv)
     bd_cleanup();
     return -1;
   }
-  fatuc_init(&uc, &fat1);
+  fatuc_init(&gUC, &fat1);
   testfat_stoptimedisp("Init");
 
   /*** interactive commands ***/
@@ -203,7 +203,7 @@ int main(int argc, char **argv)
   {
     do{
     bExit = 0;
-    printf("==============curDir [%s]===============\n", uc.sCurDir);
+    printf("==============curDir [%s]===============\n", gUC.sCurDir);
     printf("(l) dirListing (e) fileExtract (E) Exit\n");
     printf("(c) chDir (f) checkFile\n");
     cCur = fgetc(stdin); fgetc(stdin);
@@ -214,7 +214,7 @@ int main(int argc, char **argv)
       scanf("%s",sBuf1);
       fgetc(stdin);
       testfat_starttime();
-      testfat_dirlisting(sBuf1);
+      testfat_dirlisting(&gUC, sBuf1);
       testfat_stoptimedisp("dirListing");
       break;
     case 'e':
@@ -222,7 +222,7 @@ int main(int argc, char **argv)
       scanf("%s %s", sBuf1, sBuf2);
       fgetc(stdin);
       testfat_starttime();
-      testfat_fileextract(sBuf1, sBuf2);
+      testfat_fileextract(&gUC, sBuf1, sBuf2);
       testfat_stoptimedisp("fileExtract");
       break;
     case 'c':
@@ -230,7 +230,7 @@ int main(int argc, char **argv)
       scanf("%s", sBuf1);
       fgetc(stdin);
       testfat_starttime();
-      fatuc_chdir(&uc, sBuf1);
+      fatuc_chdir(&gUC, sBuf1);
       testfat_stoptimedisp("chDir");
       break;
     case 'f':
@@ -238,7 +238,7 @@ int main(int argc, char **argv)
       scanf("%s",sBuf1);
       fgetc(stdin);
       testfat_starttime();
-      testfat_checkfile(sBuf1);
+      testfat_checkfile(&gUC, sBuf1);
       testfat_stoptimedisp("checkFile");
       break;
     case 'E':

@@ -31,23 +31,41 @@ int bd_init()
 
 int bd_get_sectors(long sec, long count, char*buf)
 {
-  int res;
+  int res, toRead;
+
+#if (DEBUG_PRINT_BDFILE > 10)
+  printf("INFO:bdfile: sec[%ld] count[%ld]\n", sec, count);
+#endif
 
   res = lseek(gFID, sec*BDSECSIZE, SEEK_SET);
   if(res == -1)
   {
     perror("BDFILE: lseeking file");
-    exit(10);
+    return -ERROR_UNKNOWN;
   }
-  res = read(gFID, buf, count*BDSECSIZE);
-  if(res != count*BDSECSIZE)
+  toRead = count*BDSECSIZE;
+
+  while(1)
   {
-    perror("BDFILE: reading file");
-    exit(10);
+    res = read(gFID, buf, toRead);
+    if(res == -1)
+    {
+      perror("BDFILE: reading file");
+      return -ERROR_UNKNOWN;
+    }
+    else if(res != toRead)
+    {
+      printf("??INFO??:bdfile: read of [%d] got [%d]\n", toRead, res);
+      buf += res;
+      toRead -= res;
+      sleep(1);
+      printf("INFO:bdfile: remaining to read [%d]\n", toRead);
+    }
+    else
+      break;
   }
   return 0;
 }
-
 
 int bd_cleanup()
 {
