@@ -1,6 +1,6 @@
 int bdhdd_get_sectors_benchmark(bdkT *bd, long sec, long count, char*buf)
 {
-  int iBuf, iWord, iStat, iError, ret;
+  int iBuf, iStat, iError, ret;
   int iLoops,iCurSecs,iLoop,iSec;
   uint16 *buf16 = (uint16*)buf;
 
@@ -45,38 +45,12 @@ int bdhdd_get_sectors_benchmark(bdkT *bd, long sec, long count, char*buf)
         fprintf(stderr,"ERR:BDHDD: READSECTORS DRQ not set, iStat[0x%x] iLoop[%d] iSec[%d]\n",iStat,iLoop,iSec);
         return -ERROR_FAILED;
       }
-      for(iWord=0;iWord<BDHDD_GETSECTOR_LOOPCNT;iWord++)
-      {
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-
-      }
-
+      BDHDD_READ16S(BDHDD_CMDBR_DATA,&buf16[iBuf],256);
+      iBuf+=256;
       iBuf = 0;
-
     }
     count-=iCurSecs;
     sec+=iCurSecs;
   }
-
   return 0;
 }
-

@@ -1,6 +1,6 @@
 /*
  * bdfile.c - library for working with a linux loop based filesystem file
- * v12Oct2004_1519
+ * v27Oct2004_0007
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -16,7 +16,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <inall.h>
 #include <errs.h>
 #include <utilsporta.h>
 
@@ -108,14 +107,14 @@ int bdf_reset(bdkT *bd)
   return 0;
 }
 
-int bdfile_setup()
+int bdfile_setup(bdkT *bdk)
 {
-  bdkBDFile.init = bdf_init;
-  bdkBDFile.cleanup = bdf_cleanup;
-  bdkBDFile.reset = bdf_reset;
-  bdkBDFile.get_sectors = bdf_get_sectors;
-  bdkBDFile.get_sectors_benchmark = NULL;
-  pa_strncpy(bdkBDFile.name,"bdfile",BDK_DEVNAMELEN);
+  bdk->init = bdf_init;
+  bdk->cleanup = bdf_cleanup;
+  bdk->reset = bdf_reset;
+  bdk->get_sectors = bdf_get_sectors;
+  bdk->get_sectors_benchmark = NULL;
+  pa_strncpy(bdk->name,"bdfile",BDK_DEVNAMELEN);
   return 0;
 }
 

@@ -1,6 +1,6 @@
 /*
  * bdhdd.c - library for working with a ide hdd
- * v15Oct2004_2200
+ * v03Nov2004_1535
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -10,10 +10,10 @@
 #include <time.h>
 #include <errno.h>
 
-#include <inall.h>
 #include <bdhdd.h>
 #include <errs.h>
 #include <utilsporta.h>
+#include <dm270utils.h>
 
 int paka_nanosleep(struct timespec *req)
 {
@@ -44,7 +44,45 @@ int paka_nanosleep(struct timespec *req)
   return -ERROR_INVALID;
 }
 
-int bdhdd_altstat_waitifbitset(bdkT *bd, char bit, int *iStat, int waitCnt)
+static inline void bdhdd_inswk_simple(uint32 port, uint16* buf, int count)
+{
+  int iCur;
+  for(iCur=0;iCur<count;iCur++)
+    buf[iCur] = BDHDD_READ16(port);
+}
+
+static inline void bdhdd_inswk_unrolled(uint32 port, uint16* buf, int count)
+{
+  int iBuf,iWord,iLoops,iRem;
+  iBuf = 0;
+  iLoops = count/16; iRem = count%16;
+  for(iWord=0;iWord<iLoops;iWord++)
+  {
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+    buf[iBuf++]=BDHDD_READ16(port);
+  }
+  for(iWord=0;iWord<iRem;iWord++)
+    buf[iBuf++]=BDHDD_READ16(port);
+}
+
+static inline int bdhdd_altstat_waitifbitset(bdkT *bd, char bit, int *iStat, int waitCnt)
 {
   char iCur, iTest;
 
@@ -59,7 +97,7 @@ int bdhdd_altstat_waitifbitset(bdkT *bd, char bit, int *iStat, int waitCnt)
   return 0;
 }
 
-int bdhdd_altstat_waitifbitclear(bdkT *bd, char bit, int *iStat, int waitCnt)
+static inline int bdhdd_altstat_waitifbitclear(bdkT *bd, char bit, int *iStat, int waitCnt)
 {
   char iCur,iTest;
 
@@ -74,7 +112,7 @@ int bdhdd_altstat_waitifbitclear(bdkT *bd, char bit, int *iStat, int waitCnt)
   return -ERROR_FAILED;
 }
 
-int bdhdd_status_waitifbitset(bdkT *bd, char bit, int *iStat, int waitCnt)
+static inline int bdhdd_status_waitifbitset(bdkT *bd, char bit, int *iStat, int waitCnt)
 {
   char iCur, iTest;
 
@@ -89,7 +127,7 @@ int bdhdd_status_waitifbitset(bdkT *bd, char bit, int *iStat, int waitCnt)
   return 0;
 }
 
-int bdhdd_status_waitifbitclear(bdkT *bd, char bit, int *iStat, int waitCnt)
+static inline int bdhdd_status_waitifbitclear(bdkT *bd, char bit, int *iStat, int waitCnt)
 {
   char iCur,iTest;
 
@@ -104,7 +142,7 @@ int bdhdd_status_waitifbitclear(bdkT *bd, char bit, int *iStat, int waitCnt)
   return -ERROR_FAILED;
 }
 
-int bdhdd_dev_set(bdkT *bd, int devId, int enLBA)
+static inline int bdhdd_dev_set(bdkT *bd, int devId, int enLBA)
 {
   char iCur;
 
@@ -119,7 +157,7 @@ int bdhdd_dev_set(bdkT *bd, int devId, int enLBA)
   return 0;
 }
 
-int bdhdd_devlba_set(bdkT *bd, int devId, int enLBA, int lba2427)
+static inline int bdhdd_devlba_set(bdkT *bd, int devId, int enLBA, int lba2427)
 {
   char iCur;
 
@@ -135,7 +173,7 @@ int bdhdd_devlba_set(bdkT *bd, int devId, int enLBA, int lba2427)
   return 0;
 }
 
-int bdhdd_readyforcmd(bdkT *bd, int dev, int enLBA, int lba2427)
+static inline int bdhdd_readyforcmd(bdkT *bd, int dev, int enLBA, int lba2427)
 {
   int iStat;
 
@@ -171,7 +209,7 @@ int bdhdd_readyforcmd(bdkT *bd, int dev, int enLBA, int lba2427)
   return 0;
 }
 
-int bdhdd_checkstatus(bdkT *bd,uint8 cmd,int *iStatus,int *iError,int waitCnt)
+static inline int bdhdd_checkstatus(bdkT *bd,uint8 cmd,int *iStatus,int *iError,int waitCnt)
 {
   int ret;
 
@@ -194,7 +232,7 @@ int bdhdd_checkstatus(bdkT *bd,uint8 cmd,int *iStatus,int *iError,int waitCnt)
   return 0;
 }
 
-int bdhdd_sendcmd(bdkT *bd, uint8 cmd, int *iStatus, int *iError, int waitCnt)
+static inline int bdhdd_sendcmd(bdkT *bd, uint8 cmd, int *iStatus, int *iError, int waitCnt)
 {
   struct timespec ts;
   int ret;
@@ -278,20 +316,41 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
   int iStat,iError,ret;
   uint16 *buf16 = (uint16*)secBuf;
   
+#ifdef BDHDD_USE_IOPERM
   if(ioperm(0x0,0x3ff,1) != 0)
   {
     fprintf(stderr,"ERR:BDHDD: Failed to get ioperm\n");
     return -ERROR_FAILED;
   }
-  if(grpId == 1)
+#endif
+  if(grpId == BDHDD_GRPID_PCIDESEC)
   {
     bd->CMDBR = BDHDD_IDE1_CMDBR; bd->CNTBR = BDHDD_IDE1_CNTBR;
-    printf("INFO:BDHDD: ide1(Secondary) - devId [%d]\n", devId);
+    printf("INFO:BDHDD: PC ide1(Secondary) - devId [%d]\n", devId);
   }
-  else if(grpId == 0)
+  else if(grpId == BDHDD_GRPID_PCIDEPRI)
   {
     bd->CMDBR = BDHDD_IDE0_CMDBR; bd->CNTBR = BDHDD_IDE0_CNTBR;
-    printf("INFO:BDHDD: ide0(Primary) - devId [%d] \n", devId);
+    printf("INFO:BDHDD: PC ide0(Primary) - devId [%d] \n", devId);
+  }
+  else if(grpId == BDHDD_GRPID_DM270CF)
+  {
+    bd->CMDBR = BDHDD_DM270CF_CMDBR; bd->CNTBR = BDHDD_DM270CF_CNTBR;
+    fprintf(stderr,"INFO:BDHDD:DM270 CF - devId [%d] \n",devId);
+    fprintf(stderr,"INFO:BDHDD:CF Base addr [0x%x]Mb\n",BDHDD_READ16(0x30A4C));
+
+    /* Enable power to CF */
+    gio_dir_output(21);
+    gio_bit_clear(21);
+    sleep(1);
+    /* BUSWAITMD: Bit1=0,CFRDYisCF; Bit0=1,AccessUsesCFRDY */
+    BDHDD_WRITE16(0x30A26,0x1);
+    /* CFCTRL1: Bit0=0,CFInterfaceActive AND SSMCinactive */
+    BDHDD_WRITE16(0x30A1A,0x0);   
+    /* CFCTRL2: Bit4=0,CFDynBusSzOff=16bit; Bit0=1,REG=CommonMem */
+    BDHDD_WRITE16(0x30A1C,0x1);
+    /* BUSINTEN: Bit1=0,InttFor0->1; Bit0=0,CFRDYDoesntGenInt */
+    BDHDD_WRITE16(0x30A20,0x0);
   }
   else
   {
@@ -360,14 +419,26 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
   }
   else
   {
-    if(BDHDD_CFG_RWMULTIPLE == 1)
+#ifdef BDHDD_CFG_RWMULTIPLE
     {
       fprintf(stderr,"ERR:BDHDD: READ/WRITE MULTIPLE not supported\n");
       return -ERROR_NOTSUPPORTED;
     }
+#endif
     printf("INFO:BDHDD:ID:47: READ/WRITE MULTIPLE not Supported\n");
   }
   /* NOTE: Add SETFEATURE cmd if required later */
+#ifdef BDHDD_CFG_SETFEATURES  
+  if((ret=bdhdd_readyforcmd(bd,devId,BDHDD_CFG_LBA,0)) != 0) return ret;
+  BDHDD_WRITE8(BDHDD_CMDBR_SECCNT,0x0b);
+  BDHDD_WRITE8(BDHDD_CMDBR_FEATURES,0x03);
+  if(bdhdd_sendcmd(bd,0xEF,&iStat,&iError, BDHDD_WAIT_CMDTIME) != 0)
+  {
+    fprintf(stderr,"ERR:BDHDD: During SETFEATURES cmd\n");
+    return -ERROR_FAILED;
+  }
+  fprintf(stderr,"INFO:BDHDD: SETFEATURES triggered\n");
+#endif  
   bd->grpId = grpId; bd->devId = devId;
   bd->secSize = BDK_SECSIZE_512;
   bd->totSecs = 0xFFFFFFFF; /* FIXME */
@@ -379,7 +450,7 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
 int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
 {
   int iBuf, iStat, iError, ret;
-  int iLoops,iCurSecs,iLoop,iSec,iMulti;
+  int iLoops,iCurSecs,iLoop,iSec;
   uint16 *buf16 = (uint16*)buf;
 
 #if (DEBUG_PRINT_BDHDD > 15)
@@ -438,14 +509,17 @@ int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
         fprintf(stderr,"ERR:BDHDD: READSECTORS DRQ not set, iStat[0x%x] iLoop[%d] iSec[%d]\n",iStat,iLoop,iSec);
         return -ERROR_FAILED;
       }
-#ifdef BDHDD_CFG_RWMULTIPLE      
+#ifdef BDHDD_CFG_RWMULTIPLE
+      {
+      int iMulti;      
       iMulti = iCurSecs - iSec;
       if(iMulti > bd->multiCnt) iMulti = bd->multiCnt;
       BDHDD_READ16S(BDHDD_CMDBR_DATA,&buf16[iBuf],256*iMulti);
       iBuf+=256*iMulti;
+      }
 #else
-      for(iWord=0;iWord<256;iWord++)
-        buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
+      BDHDD_READ16S(BDHDD_CMDBR_DATA,&buf16[iBuf],256);
+      iBuf+=256;
 #endif      
 #ifdef BDHDD_BENCHMARK
       iBuf = 0;
@@ -470,22 +544,25 @@ int bdhdd_cleanup(bdkT *bd)
   return 0;
 }
 
-int bdhdd_setup()
+int bdhdd_setup(bdkT *bdk)
 {
 #ifdef BDHDD_CFG_RWMULTIPLE
   fprintf(stderr,"INFO:BDHDD: CFG_RWMULTIPLE active\n");
+#endif
+#ifdef BDHDD_CFG_SETFEATURES
+  fprintf(stderr,"INFO:BDHDD: CFG_SETFEATURES active\n");
 #endif
 #ifdef BDHDD_CHECK_DRQAFTERCMDCOMPLETION
   fprintf(stderr,"INFO:BDHDD: CHECK_DRQAFTERCMDCOMPLETION active\n");
 #endif
   if(BDHDD_CFG_LBA)
     fprintf(stderr,"INFO:BDHDD: LBA active\n");
-  bdkHdd.init = bdhdd_init;
-  bdkHdd.cleanup = bdhdd_cleanup;
-  bdkHdd.reset = bdhdd_reset;
-  bdkHdd.get_sectors = bdhdd_get_sectors;
-  bdkHdd.get_sectors_benchmark = bdhdd_get_sectors_benchmark;
-  pa_strncpy(bdkHdd.name,"bdhdd",BDK_DEVNAMELEN);
+  bdk->init = bdhdd_init;
+  bdk->cleanup = bdhdd_cleanup;
+  bdk->reset = bdhdd_reset;
+  bdk->get_sectors = bdhdd_get_sectors;
+  bdk->get_sectors_benchmark = bdhdd_get_sectors_benchmark;
+  pa_strncpy(bdk->name,"bdhdd",BDK_DEVNAMELEN);
   return 0;
 }
 

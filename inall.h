@@ -1,6 +1,8 @@
 #ifndef _INALL_H_
 #define _INALL_H_
 
+#define PRG_MODE_DM270 1
+
 #define DEBUG_VALUE_RELEASE 11
 #define DEBUG_VALUE_DEBUG 100
 

@@ -138,7 +138,7 @@ int fatfs_loadbootsector(struct TFat *fat)
   if((tVerify!=FATFS_BS_STARTBYTE_T0) && (tVerify!=FATFS_BS_STARTBYTE_T1))
   {
     fprintf(stderr,"ERR:fatfs:bootsector: BootSec byte not found at byte0\n");
-    return -ERROR_PARTK_NOMBR;
+    return -ERROR_FATFS_NOTBOOTSEC;
   }
   /* extract the FAT boot sector info */
   pCur = fat->BBuf;

@@ -10,6 +10,50 @@ ToDo
 * have to update fatfs->getfileinfo so that it doesn't convert the 16bit
   unicode to 8bit ascii.
 
+03Nov2004
+* Added support for DM270 CF access
+  * unrolling loop as helped speed here
+  * Passing larger buffer to fatfs for reading file improved speed
+  * declared some functions as inline, seems to have improved speed 
+* Cleaned up code, which was already clean
+* ON DM270 CF access (PIO mode, no 270 DMA, unrolled loop)
+  Blockdev level speed = 1.48MB/Sec (40MB contiguous read to same buffer)
+  For 160MB file (almost contiguous) read to same buffer of size
+    4MB databuffer   => readspeed=1.32MB/Sec 
+    3MB databuffer   => readspeed=1.28MB/Sec (vaguely remember, to retest)
+    2MB databuffer   => readspeed=1.18MB/Sec 
+    640KB databuffer => readspeed=810KB/Sec
+* TOTRY to improve DM270 CF Speed
+  * Use EMIF DMA to transfer data from CF to Memory instead of ARM.
+    Note this is still PIO Mode as far as CF is concerned.
+  * Currently using Default CS1 timings and explicit wait for CFRDY
+    have to see if reducing cycle time helps get data without corruption
+    * Also couple this with Changing PIO mode used for CF using SETFEATURE
+  * Maybe move to kernel space (may not help much, as already 
+    realtime scheduled)
+* FIXME:
+  * Found some issue with only chdir for some directories once in a while
+    have to verify if reproducable on PC. Maybe some issue with FATUC
+    logic have to verify
+
+27Oct2004
+* Made the blockdevices' setup routine to take a bdkT * as input and
+  initialize its member rather than the previous predefined bdkT
+  variable. Thus allowing more than one blockdev of a given type
+  to be used at the same type.
+
+InBetween
+* porta library has been updated as part of another work
+  
+18Oct2004
+* Added support for set features, but disabled by default
+  Not much use on PC as the ioport access in the PC architecture
+  is limiting the speed achieved to somewhere between PIO0 and PIO1
+* Reduced the time the bdhdd.x waits after issuing a command
+  before checking for BSY bit and other bits to around 500ns
+  The spec talks about 400ns. But just in case
+* Added ERROR_FATFS_NOTBOOTSEC 
+
 15Oct2004
 * Added support for READMULTIPLE logic in bdhdd.x and bdk.h
 * More IDENTIFY DEVICE values displayed
@@ -177,9 +221,6 @@ ToDo
 
 ToDo
 ------
-* Provide util function for strcmp
-* make blockdev data and functions part of a struct and have it embedded in
-  TFat structure.
 * Remove the forced Unicode to Ascii string conversion in getfileinfo
   and provide routine to convert given ascii string to unicode, so that
   we can always maintain unicode string in lfn of TFileInfo.

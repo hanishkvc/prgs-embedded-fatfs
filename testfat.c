@@ -1,11 +1,11 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v15Oct2004_2200
+ * v27Oct2004_0011
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
-#define TESTFAT_PRGVER "v15Oct2004_2200"
+#define TESTFAT_PRGVER "v03Nov2004_1630"
 
 #include <sched.h>
 #include <sys/time.h>
@@ -19,11 +19,14 @@
 
 #define TESTFAT_BDBM_SECS 80000
 
+bdkT bdkBDFile;
+bdkT bdkHdd;
+
 struct TFat fat1;
 struct TFatBuffers fat1Buffers;
 struct TFatFsUserContext gUC;
 struct TFileInfo fInfo;
-#define DATABUF_SIZE (FATFSCLUS_MAXSIZE*10)
+#define DATABUF_SIZE (FATFSCLUS_MAXSIZE*32)
 uint8 dataBuf[DATABUF_SIZE], sBuf1[8*1024], sBuf2[8*1024], cCur;
 struct timeval tv1, tv2;
 int32 swTimeInUSECS;
@@ -39,6 +42,9 @@ void testfat_stoptimedisp(char *sPrompt)
 {
   gettimeofday(&tv2, NULL);
   fprintf(stderr,"*** Time spent [%s] ***\n", sPrompt);
+#ifdef PRG_MODE_DM270
+  fprintf(stderr,"DM270:03Nov2004-NNOOOOTTTTTTEEEEEE-CPU Time fast by ~2.5\n");
+#endif
   fprintf(stderr,"tv1 [%ld sec: %ld usec] tv2 [%ld sec: %ld usec]\n", 
     tv1.tv_sec, tv1.tv_usec, tv2.tv_sec, tv2.tv_usec);
   if((tv2.tv_sec-tv1.tv_sec) == 0)
@@ -238,11 +244,12 @@ int main(int argc, char **argv)
   
   printf("[%s]Usage: %s <hd|file> <bdGrp,bdDev,partNo> <resetBD|noResetBD> <forceMBR|noForceMBR> <y|n interactive> <ni-file>\n", 
     TESTFAT_PRGVER, argv[0]);
+  printf("INFO:testfat:Databuf size is [%d]\n",DATABUF_SIZE);
 
   /*** initialization ***/
   testfat_starttime();
-  bdfile_setup();
-  bdhdd_setup();
+  bdfile_setup(&bdkBDFile);
+  bdhdd_setup(&bdkHdd);
   if(argc < 6)
   {
     printf("Not enough args, quiting\n");
