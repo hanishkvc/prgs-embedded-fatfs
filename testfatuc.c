@@ -22,7 +22,7 @@ int testfatuc_fileextract2posix(struct TFatFsUserContext *uc,
   }
   else
     fDest = stdout;
-  if(fatuc_fopen(uc, sFile, &fId) != 0)
+  if(fatuc_fopen(uc, sFile, &fId, FATUC_FOPEN_OPEN) != 0)
   {
     printf("testfatuc:ERROR:fileextract: opening src [%s] file\n", sFile);
     return -1;
@@ -58,17 +58,17 @@ int testfatuc_fileextract2posix(struct TFatFsUserContext *uc,
 int testfatuc_fileextract2fatfs(struct TFatFsUserContext *uc, 
       char *sFile, char *dFile)
 {
-  uint32 dataRead, lastClus, fromClus=0, totalClusWriten;
+  uint32 dataRead, lastClus=0, fromClus=0, totalClusWriten;
   int res, fId, fDId;
   uint8 *nBuf;
 
   printf("testfatuc:INFO: fileextract2fatfs [%s] to [%s]\n",sFile,dFile);
-  if(fatuc_fopen(uc, sFile, &fId) != 0)
+  if(fatuc_fopen(uc, sFile, &fId, FATUC_FOPEN_OPEN) != 0)
   {
     printf("testfatuc:ERROR:fileextract: opening src [%s] file\n", sFile);
     return -1;
   }
-  if(fatuc_fopen(uc,dFile, &fDId) != 0)
+  if(fatuc_fopen(uc,dFile, &fDId, FATUC_FOPEN_CREATE) != 0)
   {
     printf("testfatuc:ERROR:fileextract: opening dest [%s] file\n", dFile);
     return -1;
@@ -116,7 +116,7 @@ int testfatuc_checkreadspeed(struct TFatFsUserContext *uc,
   uint8 *nBuf;
 
   printf("testfatuc:INFO: readspeed [%s]\n",sFile);
-  if(fatuc_fopen(uc, sFile, &fId) != 0)
+  if(fatuc_fopen(uc, sFile, &fId, FATUC_FOPEN_OPEN) != 0)
   {
     printf("testfatuc:ERROR:readspeed: opening src [%s] file\n", sFile);
     return -1;
@@ -150,7 +150,7 @@ int testfatuc_fatfsfile_checksum(struct TFatFsUserContext *uc, char *sFile)
   uint8 *nBuf;
 
   printf("testfatuc:INFO: checksum [%s]\n",sFile);
-  if(fatuc_fopen(uc, sFile, &fId) != 0)
+  if(fatuc_fopen(uc, sFile, &fId, FATUC_FOPEN_OPEN) != 0)
   {
     printf("ERR:testfatuc:checksum: opening file[%s]\n", sFile);
     return -1;
@@ -204,7 +204,7 @@ int testfatuc_fileseektest(struct TFatFsUserContext *uc, char *sFile)
   randT tRand;
 
   printf("testfatuc:INFO: fileseektest [%s]\n",sFile);
-  if(fatuc_fopen(uc, sFile, &fId) != 0)
+  if(fatuc_fopen(uc, sFile, &fId, FATUC_FOPEN_OPEN) != 0)
   {
     printf("testfatuc:ERROR:fileseektest: opening src [%s] file\n", sFile);
     return -1;
@@ -252,6 +252,22 @@ int testfatuc_fileseektest(struct TFatFsUserContext *uc, char *sFile)
     }
   }
   fatuc_fclose(uc, fId);
+  return ret;
+}
+
+int testfatuc_deletefile(struct TFatFsUserContext *uc, char *sFile)
+{
+  int ret, fId;
+
+  printf("testfatuc:INFO: deletefile [%s]\n",sFile);
+  if(fatuc_fopen(uc, sFile, &fId, FATUC_FOPEN_OPEN) != 0)
+  {
+    printf("testfatuc:ERROR:deletefile: opening src [%s] file\n", sFile);
+    return -1;
+  }
+  ret=fatuc__deletefile(uc, fId);
+  if(ret != 0) return ret;
+  ret=fatuc_fclose(uc, fId);
   return ret;
 }
 

@@ -10,6 +10,23 @@ ToDo
 * have to update fatfs->getfileinfo so that it doesn't convert the 16bit
   unicode to 8bit ascii.
 
+17Feb2005
+* InBrief
+  * Fixed the FileHandle loss issue in fopen
+  * Fixed a issue with deleting empty files
+  * Added file creation support
+  * Updated testfatxxxx.x routines to use filedeletion 
+    and filecreation support added to fatfs.
+  * fatfs->getfileinfo updated to store unicode as unicode 
+    for longfilenames.
+
+16Feb2005
+* InBrief
+  * Fixed the issue with writing to empty files in filesystem.
+  * Added support for file deletion.
+  * Support routines for file creation added
+  * Found a possible FileHandle loss in rare cases - to be fixed.
+
 07Feb2005
 * Moved the dm270 related logic added to bdhdd.c and bdh8b16.c 
   to dm270utils.c. So that all dm270 related logic is restricted to

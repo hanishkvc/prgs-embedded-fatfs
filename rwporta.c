@@ -11,6 +11,14 @@
  * - Also defined file_read/write_fourcc only if not already defined
  * v14july2004
  * - added support for extracting string from buffer
+ * v17Feb2005
+ * - added support for writing buffer to a buffer
+ * - also the earlier logic to read a string from a buffer was more
+ *   a logic to read a buffer from a buffer into a string so renamed
+ *   accordingly. And made the earlier buffer_read_string a alias to
+ *   it which is ok for now but inefficient as it would ignore NULL
+ *   termination.
+ * - added buffer_write_uint8_[le|be][_noup]
  *
  */
 #include "rwporta.h"
@@ -333,10 +341,23 @@ uint8 buffer_read_uint8_le(uint8 **curPos)
 	return temp;
 }
 
+uint8 buffer_write_uint8_le(uint8 **curPos, uint8 data)
+{
+
+  **curPos = data; (*curPos)++;
+  return data;
+}
+
 uint8 buffer_read_uint8_le_noup(uint8 *curPos)
 {
   uint8 *tCurPos = curPos;
   return buffer_read_uint8_le(&tCurPos);
+}
+
+uint8 buffer_write_uint8_le_noup(uint8 *curPos, uint8 data)
+{
+  uint8 *tCurPos = curPos;
+  return buffer_write_uint8_le(&tCurPos, data);
 }
 
 
@@ -432,26 +453,44 @@ uint32 buffer_read_bits_msbbased(uint8 **curPos, uint32 *curBitPos, int length)
   return curData;
 }
 
-char *buffer_read_string(uint8 **curPos, int length, uint8 *buf, int bufLen)
+char *buffer_read_buffertostring(uint8 **curPos, int length, uint8 *str, int strLen)
 {
   int iCur, len;
 
-  if(bufLen <= length) 
-    len = bufLen-1; 
+  if(strLen <= length) 
+    len = strLen-1; 
   else 
     len = length;
   for(iCur=0; iCur<len; iCur++)
   {
-    buf[iCur] = **curPos;
+    str[iCur] = **curPos;
     (*curPos)++;
   }
-  buf[len]=(uint8)NULL;
+  str[len]=(uint8)NULL;
+  return str;
+}
+
+char *buffer_read_buffertostring_noup(uint8 *curPos, int length, uint8 *str, int strLen)
+{
+  uint8 *tCurPos = curPos;
+  return buffer_read_buffertostring(&tCurPos, length, str, strLen);
+}
+
+char *buffer_write_buffer(uint8 **curPos, uint8 *buf, int bufLen)
+{
+  int iCur;
+
+  for(iCur=0; iCur<bufLen; iCur++)
+  {
+    **curPos = buf[iCur];
+    (*curPos)++;
+  }
   return buf;
 }
 
-char *buffer_read_string_noup(uint8 *curPos, int length, uint8 *buf, int bufLen)
+char *buffer_write_buffer_noup(uint8 *curPos, uint8 *buf, int bufLen)
 {
   uint8 *tCurPos = curPos;
-  return buffer_read_string(&tCurPos, length, buf, bufLen);
+  return buffer_write_buffer(&tCurPos, buf, bufLen);
 }
 

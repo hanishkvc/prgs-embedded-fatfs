@@ -62,14 +62,21 @@ uint16 buffer_read_uint16_le(uint8 **curPos);
 uint16 buffer_write_uint16_le(uint8 **curPos, uint16 data);
 
 #define buffer_read_uint8_be buffer_read_uint8_le
+#define buffer_write_uint8_be buffer_write_uint8_le
 uint8 buffer_read_uint8_le(uint8 **curPos); 
+uint8 buffer_write_uint8_le(uint8 **curPos, uint8 data);
 uint8 buffer_read_uint8_le_noup(uint8 *curPos); 
+uint8 buffer_write_uint8_le_noup(uint8 *curPos, uint8 data); 
 
 uint32 buffer_read_bits_lsbbased(uint8 **curPos, uint32 *curBitPos, int length);
 uint32 buffer_read_bits_msbbased(uint8 **curPos, uint32 *curBitPos, int length);
 
-char *buffer_read_string(uint8 **curPos, int length, uint8 *buf, int bufLen);
-char *buffer_read_string_noup(uint8 *curPos, int length, uint8 *buf, int bufLen);
+char *buffer_read_buffertostring(uint8 **curPos, int length, uint8 *buf, int bufLen);
+#define buffer_read_string buffer_read_buffertostring
+char *buffer_read_buffertostring_noup(uint8 *curPos, int length, uint8 *buf, int bufLen);
+#define buffer_read_string_noup buffer_read_buffertostring_noup
+char *buffer_write_buffer(uint8 **curPos, uint8 *buf, int bufLen);
+char *buffer_write_buffer_noup(uint8 *curPos, uint8 *buf, int bufLen);
 
 #endif
 

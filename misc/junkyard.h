@@ -156,3 +156,18 @@ int util_strcpy(uint8 *src, uint8 *dest, uint32 destLen)
   return -1;
 }
 
+/* Initial version of deletefile routine - 17Feb2005 */
+
+int fatfs_deletefile83_indirbuf(uint8 *dirBuf, uint32 dirBufSize, 
+      char *f83Name)
+{
+  uint32 prevPos=0;
+  int iRet;
+  struct TFileInfo gInfo;
+  
+  iRet=fatfs_getfileinfo_fromdir(f83Name,dirBuf,dirBufSize,&gInfo,&prevPos,0);
+  if(iRet != 0)
+    return -ERROR_NOTFOUND;
+  return fatfs__deletefileinfo_indirbuf(dirBuf,dirBufSize,&gInfo);
+}
+

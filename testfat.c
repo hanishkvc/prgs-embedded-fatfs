@@ -5,7 +5,8 @@
  * 
  */
 
-#define TESTFAT_PRGVER "v07Feb2005_2255"
+#define TESTFAT_PRGVER "v17Feb2005_1747"
+#undef NO_REALTIME_SCHED  
 
 #include <sched.h>
 
@@ -347,6 +348,7 @@ int main(int argc, char **argv)
     printf("Not enough args, quiting\n");
     exit(10);
   }
+#ifndef NO_REALTIME_SCHED  
   schedP.sched_priority = 50;
   if(sched_setscheduler(0,SCHED_RR,&schedP) != 0)
   {
@@ -355,6 +357,7 @@ int main(int argc, char **argv)
   }
   else
     fprintf(stderr,"INFO:testfat: REALTIME Scheduling enabled\n");
+#endif
   if(pa_strncmp(argv[1],"hd",2) == 0)
     bdk = &bdkHdd;
   else if(pa_strncmp(argv[1],"h8b16",5) == 0)
@@ -407,7 +410,7 @@ int main(int argc, char **argv)
     printf("(cd)chDir (cf)checkFile (reset)Reset (fs)readspeed (fsa)readspeedALL\n");
     printf("(nfc)normalfsfile checksum (ffc)fatfsfile checksum\n");
     printf("(FUC)FatUserContext Funcs (seek)seektest (fsfreelist)FilesysFreelist\n");
-    printf("(cpff)fileExtract2fatfs (exit) Exit\n");
+    printf("(cpff)fileExtract2fatfs (del) deletefile (exit) Exit\n");
     scanf("%s",sCur); fgetc(stdin);
     if(strcmp("ls",sCur) == 0)
     {
@@ -588,15 +591,25 @@ int main(int argc, char **argv)
       scanf("%s",sBuf1);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
-      testfatuc_fileseektest(&gUC, sBuf1);
+      if(testfatuc_fileseektest(&gUC, sBuf1) != 0)
+        pa_printstrErr("testfat:ERROR: fileseektest\n");
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"seekTest");
+    }
+    if(strcmp("del",sCur) == 0)
+    {
+      printf("enter file for delete:");
+      scanf("%s",sBuf1); fgetc(stdin);
+      lu_starttime(&gTFtv1);
+      if(testfatuc_deletefile(&gUC, sBuf1) != 0)
+        pa_printstrErr("testfat:ERROR: deletefile\n");
+      lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"deletefile");
     }
     if(strcmp("exit",sCur) == 0)
       bExit = 1;
   }while(!bExit);
 
 cleanup:  /*** cleanup ***/
-  fsutils_umount(&bdkBDFile,&fat1);
+  fsutils_umount(bdk,&fat1);
   return 0; 
 }
 

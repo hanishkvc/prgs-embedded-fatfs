@@ -8,7 +8,7 @@
 #ifndef _FATFS_H_
 #define _FATFS_H_
 
-#define FATFS_LIBVER "v31Jan2005_1619"
+#define FATFS_LIBVER "v17Feb2005_1747"
 
 #include <rwporta.h>
 #include <bdk.h>
@@ -78,6 +78,11 @@
 #define FATUC_USED 1
 #define FATUC_FREE 0
 
+#define FATUC_FOPEN_OPEN 1
+#define FATUC_FOPEN_CREATE 2
+
+#define FATUC_FOPEN_CREATE_DENTRIESPERFILE 4
+
 #define FATUC_SEEKSET 1
 #define FATUC_SEEKCUR 2
 #define FATUC_SEEKEND 3
@@ -100,6 +105,11 @@ struct TFatBootSector
   int isFat12, isFat16, isFat32;
 };
 
+#define FINFO_UPDATED_NONE 0x0
+#define FINFO_UPDATED_SIZE 0x1
+#define FINFO_UPDATED_NAME 0x2
+#define FINFO_UPDATED_FIRSTCLUS 0x4
+#define FINFO_UPDATED_ALL 0x8
 struct TFileInfo 
 {
   uint8 name[FATFSNAME_SIZE], attr, ntRes, crtTimeTenth;
@@ -108,6 +118,7 @@ struct TFileInfo
   uint32 firstClus, fileSize;
   uint32 newFileSize;
   int updated;
+  int fDEntryPos, lDEntryPos;
 };
 
 struct TFatBuffers
@@ -229,12 +240,14 @@ int fatuc_init(struct TFatFsUserContext *uc, struct TFat *fat);
 int fatuc_chdir(struct TFatFsUserContext *uc, char *fDirName);
 int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,  
       struct TFileInfo *fInfo, uint32 *prevPos);
-int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId);
+int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId,
+      int flag);
 int fatuc_fseek(struct TFatFsUserContext *uc, int fId,
       int32 offset, int whence);
 int fatuc_fread(struct TFatFsUserContext *uc, int fId,
       uint8 *buf, uint32 bufLen, uint32 bytesToRead, 
       uint8 **atBuf, uint32 *bytesRead);
+int fatuc__deletefile(struct TFatFsUserContext *uc, int fId);
 int fatuc_fclose(struct TFatFsUserContext *uc, int fId);
 
 #endif

@@ -1,7 +1,7 @@
 CC=$(CROSS)gcc
 AR=$(CROSS)ar
-CFLAGS = -Wall -g -I .
 CFLAGS = -Wall -O2 -I .
+CFLAGS = -Wall -g -I .
 C_FLAGS=
 arm-elf-C_FLAGS= -D PRG_MODE_DM270
 CFLAGS += $($(CROSS)C_FLAGS)
@@ -14,7 +14,7 @@ PORTAOFILES=rwporta.o utilsporta.o rand.o
 PORTAHFILES=rwporta.h utilsporta.h errorporta.h rand.h
 TESTPATH=/mnt/temp1
 INSTALLPATH=/hanishkvc/samples/fatfs
-RELEASEPATH=/hanishkvc/samples/fatfs/release
+RELEASEPATH=/hanishkvc/samples/fatfs/fatfs-release
 arm-elf-INSTALLPATH=/experiments/src/forBoard24-27Oct2004/uClinux-dist-2003/prop
 
 FATFSCFILES=fatfs.c fsutils.c partk.c bdfile.c bdhdd.c linuxutils.c
