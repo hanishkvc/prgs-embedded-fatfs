@@ -10,11 +10,85 @@ ToDo
 * have to update fatfs->getfileinfo so that it doesn't convert the 16bit
   unicode to 8bit ascii.
 
+04Nov2004, 05Nov2004-0100
+* Note that the <Sandisk 1GB CF>, <Transcend 512MB CF> and 
+  <Transcend 256MB CF> support upto PIO2 mode. 
+  While the <Kingston 256MB CF> supports only upto PIO1.
+  So the speed difference among them below
+* Based on the profiles done as mentioned below EMIF CF Cycle times updated to
+  **** EMIF CF Cycle time => 0x0c0d 0x0401 0x1110 ****
+  * For <Sandisk 1GB CF>
+    { Taking lower values got, as timing is sensitive and stopwatch manual }
+    BlockDev level => 6.45MB/Sec [4.25 MB/Sec]
+    FatFS level => 6.20MB/Sec (4MB databuffer) [4.00 MB/Sec]
+                   5.00MB/Sec (1MB databuffer) [3.48 MB/Sec]
+  * For <Transcend 512MB CF>
+    BlockDev Level => 5.45MB/Sec [4.00 MB/Sec]
+    FatFS level => 4.37MB/Sec (4MB databuffer) [3.48 MB/Sec]
+                   2.63MB/Sec (1MB databuffer) [2.23 MB/Sec]
+  * For <Transcend 256MB CF>
+    BlockDev Level => 5.42MB/Sec
+    FatFS level => 5.00MB/Sec (59MB FRAGMENTED file, 4MB databuffer) 
+                   4.20MB/Sec (59MB FRAGMENTED file, 1MB databuffer) 
+  * For <Kingston 256MB CF>
+    BlockDev Level => 3.23MB/Sec
+    FatFS level => 2.80MB/Sec Avg (4MB & 7MB files, 4MB databuffer)
+
+  Note: For Small files the speed during 1MB databuffer tends toward 
+        4MB Databuffer Speeds
+  Note: In above data [xxxxx MB/Sec] corresponds to default EMIFCF CycleTimings
+
+* Updated bdhdd.x logic such that the DM270CF logic is added
+  only if PRG_MODE_DM270 is defined
+* Made the Databufsize in the testfat.c definable for a given run
+  of the prg within a set max limit. Useful for testing effect of
+  Databuf size on speeds achieved.
+* Profiled Data on DM270
+  **** EMIF CF Cycle time => 0x0c0d 0x0901 0x1110 ****
+  **** 160MB contiguous file (fatfs) and 40MB contiguous (blockdev) ****
+  * For <Transcend 512MB CF>
+    BlockDev Level => 5.14MB/Sec
+    FatFS level => 4.11MB/Sec (4MB databuffer)
+                   3.40MB/Sec (2MB databuffer)
+                   2.53MB/Sec (1MB databuffer)
+  * For <Sandisk 1GB CF> 
+    { Taking lower values got, as timing is sensitive and stopwatch manual }
+    BlockDev Level => 5.89MB/Sec
+    FatFS level => 5.57MB/Sec (4MB databuffer)
+                   5.23MB/Sec (2MB databuffer)
+                   4.60MB/Sec (1MB databuffer)
+
+  **** EMIF CF Cycle time => 0x1213 0x0f07 0x1110 ****
+  **** 160MB contiguous file (fatfs) and 40MB contiguous (blockdev) ****
+  * For <Transcend 512MB CF>
+    BlockDev Level => 4.36MB/Sec
+    FatFS level => 3.61MB/Sec (4MB databuffer)
+                   3.04MB/Sec (2MB databuffer)
+                   2.32MB/Sec (1MB databuffer)
+                   1.50MB/Sec (512KB databuffer)
+  * For <Sandisk 1GB CF>
+    BlockDev Level => 4.65MB/Sec
+    FatFS level => 4.42MB/Sec (4MB databuffer)
+                   4.18MB/Sec (2MB databuffer)
+                   3.77MB/Sec (1MB databuffer)
+
+  **** Default EMIF CF Cycle time => 0x1415 0x1109 0x1220 ****
+  **** 160MB contiguous file (fatfs) and 40MB contiguous (blockdev) ****
+  * For <Sandisk 1GB CF>
+    BlockDev Level => 4.25MB/Sec
+    FatFS level => 4.00MB/Sec (4MB databuffer)
+                   3.80MB/Sec (2MB databuffer)
+                   3.48MB/Sec (1MB databuffer)
+                   2.96MB/Sec (512KB databuffer)
+ 
+
 03Nov2004-2350
 * Added support for DM270 EMIF DMA between CF and SDRam
-  Now getting
+  Now getting on the Transcend 512MB CF
   at BlockDev level => 4MB/Sec (40MB contiguous data)
   at FatFS level => 3.48MB/Sec (160MB contiguous file and 4MB Databuffer)
+                    2.89MB/Sec (2MB Databuffer)
+                    2.23MB/Sec (1MB Databuffer)
   * Also enable compiler optimization, which would have helped 3 to 5 %
 * DANGER: This seems better than the bootloader level and PrKernel level
   for FPMC and or Board24 or Board24MNC. HAVE TO VERIFY INTEGRITY of DATA READ.
@@ -28,6 +102,7 @@ ToDo
   * declared some functions as inline, seems to have improved speed 
 * Cleaned up code, which was already clean
 * ON DM270 CF access (PIO mode, no 270 DMA, unrolled loop)
+  <Using Transcend 512MB CF>
   Blockdev level speed = 1.48MB/Sec (40MB contiguous read to same buffer)
   For 160MB file (almost contiguous) read to same buffer of size
     4MB databuffer   => readspeed=1.32MB/Sec 

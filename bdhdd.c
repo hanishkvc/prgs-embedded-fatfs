@@ -1,6 +1,6 @@
 /*
  * bdhdd.c - library for working with a ide hdd
- * v04Nov2004_1300
+ * v04Nov2004_2330
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -393,6 +393,16 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
     sleep(1);
     /* BUSWAITMD: Bit1=0,CFRDYisCF; Bit0=1,AccessUsesCFRDY */
     BDHDD_WRITE16(0x30A26,0x1);
+#ifdef BDHDD_DM270_FASTEMIF
+    /**** EMIF CF Cycle time => 0x0c0d 0x0901 0x1110 ****/
+    /* CS1CTRL1A: Bit12-8=0xc,ChipEnableWidth; Bit4-0=0xd,CycleWidth */
+    BDHDD_WRITE16(0x30A04,0x0c0d);
+    /* CS1CTRL1B: Bit12-8=0x09,OutputEnWidth; Bit4-0=0x01,WriteEnWidth */
+    BDHDD_WRITE16(0x30A06,0x0401); /* FIXME: Verifying 0x04 */
+    /* CS1CTRL2: Bit13-12=0x1,Idle; Bit11-8=0x1,OutputEnSetup
+                 Bit7-4=0x1,WriteEnableSetup; Bit3-0=0,ChipEnSetup */
+    BDHDD_WRITE16(0x30A08,0x1110);
+#endif
     /* CFCTRL1: Bit0=0,CFInterfaceActive AND SSMCinactive */
     BDHDD_WRITE16(0x30A1A,0x0);   
     /* CFCTRL2: Bit4=0,CFDynBusSzOff=16bit; Bit0=1,REG=CommonMem */

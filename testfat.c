@@ -1,11 +1,11 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v04Oct2004_1225
+ * v04Oct2004_2335
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
-#define TESTFAT_PRGVER "v04Nov2004_1300"
+#define TESTFAT_PRGVER "v04Nov2004_2335"
 
 #include <sched.h>
 #include <sys/time.h>
@@ -367,6 +367,9 @@ int main(int argc, char **argv)
       if(bdk->get_sectors_benchmark(bdk,0,TESTFAT_BDBM_SECS,dataBuf)!=0)
         fprintf(stderr,"ERR:testfat: get_sectors_benchmark failed\n");
       testfat_stoptimedisp("BlockDev raw speed");
+      fprintf(stderr,"NumSecs[%d] time[%ld]usecs readSpeed/msec[%ld]\n",
+        TESTFAT_BDBM_SECS,swTimeInUSECS,
+        ((TESTFAT_BDBM_SECS*bdk->secSize)/(swTimeInUSECS/1000)));
       break;
     case 'R':
       printf("Reseting blockdev [%s]\n",bdk->name);
