@@ -70,3 +70,11 @@ s2G:
 	rm -f bd.bd
 	ln -s /tmp/2G.bd bd.bd
 
+rwporta:
+	diff rwporta.c ../../porta/rwporta.c
+	rm rwporta.c
+	ln -s ../../porta/rwporta.c rwporta.c
+	diff rwporta.h ../../porta/rwporta.h
+	rm rwporta.h
+	ln -s ../../porta/rwporta.h rwporta.h
+
