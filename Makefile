@@ -1,6 +1,6 @@
 CC=$(CROSS)gcc
-CFLAGS = -Wall -g -I .
 CFLAGS = -Wall -O2 -I .
+CFLAGS = -Wall -g -I .
 C_FLAGS=
 arm-elf-C_FLAGS= -Wl,-elf2flt -D PRG_MODE_DM270
 CFLAGS += $($(CROSS)C_FLAGS)
@@ -42,6 +42,7 @@ porta:
 
 install:
 	mv $(TESTFATS) $($(CROSS)INSTALLPATH)/
+	cp Makefile $($(CROSS)INSTALLPATH)/Disk16Make
 
 clean:
 	rm $(TESTFATS) || /bin/true

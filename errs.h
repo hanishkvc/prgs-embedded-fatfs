@@ -1,6 +1,6 @@
 /*
  * errs.h - header providing common error defines
- * v10Oct2004_1933
+ * v18Jan2005_0933
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -14,6 +14,7 @@
 #define ERROR_TRYAGAIN 103
 #define ERROR_FAILED 104
 #define ERROR_TIMEOUT 105
+#define ERROR_INSUFFICIENTHANDLES 106
 
 #define ERROR_NOMORE 201
 #define ERROR_NOTFOUND 202

@@ -1,6 +1,6 @@
 /*
  * fatfs.h - library for working with fat filesystem
- * v06Nov2004_1743
+ * v18Jan2005_1743
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -8,7 +8,7 @@
 #ifndef _FATFS_H_
 #define _FATFS_H_
 
-#define FATFS_LIBVER "v14Oct2004_1818"
+#define FATFS_LIBVER "v18Jan2005_2115"
 
 #include <rwporta.h>
 #include <bdk.h>
@@ -48,6 +48,7 @@
 
 #define FATFSCLUS_MAXSIZE (64*1024)
 #define FATFSUSERCONTEXTDIRBUF_MAXSIZE (2048*FATDIRENTRY_SIZE)
+#define FATFSUSERCONTEXT_NUMFILES 4
 #define FATFS_DIRSEP '\\'
 
 #define FATATTR_READONLY 0x01
@@ -71,6 +72,13 @@
 
 #define FAT32_EXTFLAGS_ACTIVEFAT(N) ((N)&0xF)
 #define FAT32_FSVER 0x0000
+
+#define FATUC_USED 1
+#define FATUC_FREE 0
+
+#define FATUC_SEEKSET 1
+#define FATUC_SEEKCUR 2
+#define FATUC_SEEKEND 3
 
 #define fatfs_firstsecofclus(fat, N) (((N-2)*fat->bs.secPerClus)+fat->bs.firstDataSec)
 /* assumes FAT is a uint8 array */
@@ -127,6 +135,14 @@ struct TClusList
   uint32 adjClusCnt;
 };
 
+struct TFatFile
+{
+	struct TFileInfo fInfo;
+	uint32 fPos;
+	int state;
+	uint32 prevClus;
+};
+
 struct TFatFsUserContext
 {
   struct TFat *fat;
@@ -134,6 +150,7 @@ struct TFatFsUserContext
   uint32 curDirBufLen;
   uint8 *tempDirBuf;
   uint32 tempDirBufLen;
+  struct TFatFile files[FATFSUSERCONTEXT_NUMFILES];
   uint8 sCurDir[FATFSPATHNAME_MAXSIZE];
   uint8 sTempDir[FATFSPATHNAME_MAXSIZE];
   uint32 dirBuf1[FATFSUSERCONTEXTDIRBUF_MAXSIZE/4];
@@ -183,12 +200,19 @@ int fsutils_umount(bdkT *bd, struct TFat *fat);
  *   of uc as tempDirBuf could point to TFat.RDBuf in some cases
  */
 void fatuc_updatetempdirbufinfo(struct TFatFsUserContext *uc);
-int fatuc_changedir(struct TFatFsUserContext *uc, char *fDirName,
-  int bUpdateCurDir);
+int fatuc__changedir(struct TFatFsUserContext *uc, char *fDirName,
+      int bUpdateCurDir);
 int fatuc_init(struct TFatFsUserContext *uc, struct TFat *fat);
 int fatuc_chdir(struct TFatFsUserContext *uc, char *fDirName);
 int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,  
-  struct TFileInfo *fInfo, uint32 *prevPos);
+      struct TFileInfo *fInfo, uint32 *prevPos);
+int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId);
+int fatuc_fseek(struct TFatFsUserContext *uc, int fId,
+      int32 offset, int whence);
+int fatuc_fread(struct TFatFsUserContext *uc, int fId,
+      uint8 *buf, uint32 bufLen, uint32 bytesToRead, 
+      uint8 **atBuf, uint32 *bytesRead);
+int fatuc_fclose(struct TFatFsUserContext *uc, int fId);
 
 #endif
 

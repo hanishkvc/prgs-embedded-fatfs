@@ -11,16 +11,40 @@
 #define na_fprintf fprintf
 #define na_printstr printf
 
-int pa_printstr(char *str)
+int pa_printstr(const char *str)
 {
   return na_printstr(str);
 }
 
-int pa_printstrErr(char *str)
+int pa_printstrErr(const char *str)
 {
   return na_fprintf(stderr,str);
 }
 
+int pa_printint(const int data)
+{
+  char sInt[32];
+  int iConsumed;
+  pa_int32TOstr(sInt,32,data,&iConsumed);
+  return pa_printstr(sInt);
+}
+
+int pa_printuint(const unsigned int data)
+{
+  char sInt[32];
+  int iConsumed;
+  pa_uint32TOstr(sInt,32,data,&iConsumed);
+  return pa_printstr(sInt);
+}
+
+int pa_printhex(const unsigned int data)
+{
+  char sInt[32];
+  pa_uint32TOhexstr(sInt,data);
+  pa_printstr("0x");
+  return pa_printstr(sInt);
+}
+	  
 void pa_divmod(int num, int den, int* div, int* rem)
 {
   int sign;
@@ -97,11 +121,13 @@ void pa_memset(void *vdest, int ival, uint32 len)
   }
 }
 
-void pa_memcpy(uint8 *dest, uint8 *src, uint32 len)
+void pa_memcpy(void *vDest, void *vSrc, uint32 len)
 {
   int iCur;
   int iNum8s;
   int iRemains;
+  uint8 *dest = vDest;
+  uint8 *src = vSrc;
 
   iNum8s = len >> 3;
   iRemains = len - (iNum8s << 3);

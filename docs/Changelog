@@ -10,8 +10,42 @@ ToDo
 * have to update fatfs->getfileinfo so that it doesn't convert the 16bit
   unicode to 8bit ascii.
 
+18Jan2005
+* Added support for fatusercontext based file open, seek, read and 
+  close for now. 
+* Currently its a lazy logic, which recalculates the active entities
+  each time read is called. May split the logic such that the 
+  active entities depended on filePos is calculated only if required
+  like during seek operations and after read operation if the filePos
+  doesn't end at a Cluster boundary.
+* For the above, updated the TFatFsUserContext such that it has
+  space for meta data of a given number of Fat files like the 
+  TFileInfo and filePos. 
+  And all the fatuc_fxxxx functions use handles to these metadata
+  to handle the fat files and thats what the end user works with
+  also at the end.
+* Changed fatuc_changedir to fatuc__changedir as this is a internal
+  routine to be used by other fatuc_xxxxx functions and not to be
+  directly called by the user.
+* Maybe some other chota mota things in between these days
+* As a result of above added testfatuc.c file with routines based
+  on the fatuc_fxxxxx functions.
+* Also as of now I have done only very minimal tests for the new
+  fatuc_fxxxx functions, that too those tests which test that
+  the previous functionality is not lost to some extent.
+  More thorough tests to be done. Also As I had to upgrade/downgrade
+  the Linux in my system, the arm-elf-xxxx cross tools which I had
+  compiled previously don't work on this new system as it requires
+  a newer libc library. So till I haven't fixed this up one way 
+  or other, I cann't do any target based testing.
+* YET To test the full functionality and the speed hit with these 
+  new fatuc_fxxxx routines.
+
+
 06Dec2004
 * Generalized bdh8b16.x.
+* Also found that MemCARD3PCtlr chip doesn't work properly when CFRDY  
+  check is enabled.
 * Fixed the dm270utils.h so that it uses PA_MEMREAD/WRITE routines
   instead of inw/outw, thus solving the stupid warnings because of
   change in definition of inw/outw between x86 and arm. This is also

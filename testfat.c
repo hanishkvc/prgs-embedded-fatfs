@@ -1,11 +1,11 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v07Nov2004_1330
+ * v18Jan2005_1830
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
-#define TESTFAT_PRGVER "v19Nov2004_2234"
+#define TESTFAT_PRGVER "v18Jan2005_2102"
 
 #include <sched.h>
 
@@ -36,6 +36,7 @@ int32 timeInUSECS;
 void *pArg[8];
 char pBuf[1024];
 uint32 gDataBufSize;
+int gFatUCFuncs=0;
 
 int testfat_rootdirlisting(struct TFatFsUserContext *uc)
 {
@@ -285,6 +286,7 @@ int testfat_fatfsfile_checksum(struct TFatFsUserContext *uc, char *sFile)
   return ret;
 }
 
+#include "testfatuc.c"
 
 int main(int argc, char **argv)
 {
@@ -370,6 +372,7 @@ int main(int argc, char **argv)
     printf("(l)dirListing (e)fileExtract (E)Exit (b)BlockDev speed\n");
     printf("(c)chDir (f)checkFile (R)Reset (s)readspeed (S)readspeedALL\n");
     printf("(X)normalfsfile checksum (Y)fatfsfile checksum\n");
+    printf("(U)FatUserContext Funcs\n");
     cCur = fgetc(stdin); fgetc(stdin);
     switch(cCur)
     {
@@ -386,7 +389,10 @@ int main(int argc, char **argv)
       scanf("%s %s", sBuf1, sBuf2);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
-      testfat_fileextract(&gUC, sBuf1, sBuf2);
+      if(gFatUCFuncs)
+        testfatuc_fileextract(&gUC, sBuf1, sBuf2);
+      else
+        testfat_fileextract(&gUC, sBuf1, sBuf2);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"fileExtract");
       break;
     case 'c':
@@ -410,7 +416,10 @@ int main(int argc, char **argv)
       scanf("%s",sBuf1);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
-      testfat_checkreadspeed(&gUC, sBuf1, &fileSize);
+      if(gFatUCFuncs)
+        testfatuc_checkreadspeed(&gUC, sBuf1, &fileSize);
+      else
+        testfat_checkreadspeed(&gUC, sBuf1, &fileSize);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"readspeed");
       fprintf(stderr,"fileSize[%ld] time[%ld]usecs readSpeed/msec[%ld]\n",
         fileSize,timeInUSECS,(fileSize/(timeInUSECS/1000)));
@@ -466,8 +475,23 @@ int main(int argc, char **argv)
       scanf("%s", sBuf1);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
-      testfat_fatfsfile_checksum(&gUC, sBuf1);
+      if(gFatUCFuncs)
+        testfatuc_fatfsfile_checksum(&gUC, sBuf1);
+      else
+        testfat_fatfsfile_checksum(&gUC, sBuf1);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"fatfsfile_checksum");
+      break;
+    case 'U':
+      if(gFatUCFuncs == 0)
+      {
+        gFatUCFuncs = 1;
+        printf("testfat:INFO: FatUserContext functions Selected\n");
+      }
+      else
+      {
+        gFatUCFuncs = 0;
+        printf("testfat:INFO: FatUserContext functions DESelected\n");
+      }
       break;
     case 'E':
       bExit = 1;

@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v14Oct2004-1818
+ * v18Jan2005_2100
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -742,6 +742,14 @@ int fatfs_checkbuf_forloadfileclus(struct TFat *fat, uint32 bufLen)
   return 0;
 }
 
+/* * bufLen specifies the number of bytes to read and 
+ *   it must be a multiple of clustersize in bytes 
+ *   * Also this function reads begining from a cluster boundery
+ *     (prevClus - the cluster to start reading) till a whole number 
+ *     of clusters i.e clusters is the granularity of this function.
+ * * It doesn't check if the passed buf can hold the specified
+ *   number of bytes (bufLen)
+ */
 int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
       uint8 *buf, uint32 bufLen, uint32 *totalClusRead, uint32 *prevClus)
 {
@@ -910,7 +918,7 @@ int util_memcpy(uint8 *src, uint32 srcLen, uint8 *dest, uint32 destLen)
 }
 
 
-int fatuc_changedir(struct TFatFsUserContext *uc, char *fDirName, int bUpdateCurDir)
+int fatuc__changedir(struct TFatFsUserContext *uc, char *fDirName, int bUpdateCurDir)
 {
   uint16 tokenLen = (FATDIRENTRYLFN_SIZE+1);
   uint8 *dBuf;
@@ -991,7 +999,7 @@ int fatuc_changedir(struct TFatFsUserContext *uc, char *fDirName, int bUpdateCur
  
 int fatuc_chdir(struct TFatFsUserContext *uc, char *fDirName)
 {
-  return fatuc_changedir(uc, fDirName, 1);
+  return fatuc__changedir(uc, fDirName, 1);
 }
 
 int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,  
@@ -1015,7 +1023,7 @@ int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,
 #if (DEBUG_PRINT_FATFS > 5)
     printf("INFO:fatuc:getfileinfo: work with curDir Files for EFFICIENCY\n");
 #endif
-    res = fatuc_changedir(uc, uc->pName, 0);
+    res = fatuc__changedir(uc, uc->pName, 0);
     if(res != 0)
     {
       printf("ERROR:fatuc:getfileinfo: changedir failed\n");
@@ -1029,5 +1037,122 @@ int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,
 int fatfs_cleanup(struct TFat *fat)
 {
   return 0;
+}
+
+int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId)
+{
+  int iCur;
+  uint32 prevPos=0;
+
+  *fId = -1;
+  for(iCur=0;iCur<FATFSUSERCONTEXT_NUMFILES;iCur++)
+  {
+    if(uc->files[iCur].state != FATUC_USED)
+    {
+      *fId = iCur;
+      uc->files[*fId].state = FATUC_USED;
+      uc->files[*fId].fPos = 0;
+      uc->files[*fId].prevClus = 0;
+      break;
+    }
+  }
+  if(*fId == -1)
+    return -ERROR_INSUFFICIENTHANDLES;
+  return fatuc_getfileinfo(uc,cFile,&uc->files[*fId].fInfo,&prevPos);
+}
+
+int fatuc_fseek(struct TFatFsUserContext *uc, int fId,
+      int32 offset, int whence)
+{
+  if(uc->files[fId].state != FATUC_USED)
+    return -ERROR_INVALID;
+  if(whence == FATUC_SEEKSET)
+  {
+    uc->files[fId].fPos = offset;
+    return 0;
+  }
+  if(whence == FATUC_SEEKCUR)
+  {
+    uc->files[fId].fPos += offset;
+    return 0;
+  }
+  if(whence == FATUC_SEEKEND)
+  {
+    uc->files[fId].fPos = uc->files[fId].fInfo.fileSize + offset;
+    return 0;
+  }
+  return -ERROR_INVALID;
+}
+
+#define FATUC_READ_CLSIZE 64
+int fatuc_fread(struct TFatFsUserContext *uc, int fId,
+      uint8 *buf, uint32 bufLen, uint32 bytesToRead, 
+      uint8 **atBuf, uint32 *bytesRead)
+{
+  int clSize,ret,clusSize, iCur;
+  int startClus, startOff, curClus, diffClus, startActClus;
+  struct TClusList cl[FATUC_READ_CLSIZE];
+  uint32 totalClusRead;
+
+  if(uc->files[fId].state != FATUC_USED)
+    return -ERROR_INVALID;
+  if(uc->files[fId].fPos >= uc->files[fId].fInfo.fileSize)
+    return -ERROR_FATFS_EOF;
+  clusSize = uc->fat->bs.bytPerSec * uc->fat->bs.secPerClus;
+  startClus = (uc->files[fId].fPos/clusSize)+1; /* note starts with 1 */
+  startOff = uc->files[fId].fPos%clusSize;
+  curClus = 0;
+  startActClus = 0;
+  do{
+    clSize = FATUC_READ_CLSIZE;
+    /* Lazy logic written assuming fseek as been used always */
+    uc->files[fId].prevClus = 0;
+    ret=fatfs_getopticluslist_usefileinfo(uc->fat, &uc->files[fId].fInfo,
+       cl, &clSize, &uc->files[fId].prevClus);
+    if((ret != 0) && (ret != -ERROR_TRYAGAIN))
+      return ret;
+    for(iCur=0;iCur<clSize;iCur++)
+    {
+       curClus += cl[iCur].adjClusCnt+1;
+       diffClus = curClus - startClus;
+       if(diffClus >= 0)
+       {
+         startActClus = (cl[iCur].baseClus + cl[iCur].adjClusCnt) - diffClus;
+         break;
+       }
+    }
+  }while((ret==-ERROR_TRYAGAIN) && (startActClus==0));
+  if(startActClus == 0)
+    return -ERROR_NOMORE;
+  uc->files[fId].prevClus = startActClus;
+  iCur = ((bytesToRead-1+startOff+clusSize)/clusSize)*clusSize;
+  if(iCur > bufLen)
+    return -ERROR_INSUFFICIENTRESOURCE;
+  ret=fatfs_loadfileclus_usefileinfo(uc->fat, &uc->files[fId].fInfo, 
+      buf,  iCur, &totalClusRead, &uc->files[fId].prevClus);
+  if((ret!=0)&&(ret!=-ERROR_TRYAGAIN))
+    return ret;
+  *atBuf = buf + startOff;
+  *bytesRead = totalClusRead*clusSize-startOff;
+  if(*bytesRead < bytesToRead)
+  {
+    pa_printstrErr("???:fatfs:fatuc_read: bytesRead<bytesToRead CANT OCCUR\n");
+    return -ERROR_UNKNOWN;
+  }
+  *bytesRead = bytesToRead;
+  uc->files[fId].fPos += bytesToRead;
+  return 0;
+}
+
+int fatuc_fclose(struct TFatFsUserContext *uc, int fId)
+{
+  if(uc->files[fId].state == FATUC_USED)
+  {
+    uc->files[fId].state = FATUC_FREE;
+    uc->files[fId].fPos = 0;
+    uc->files[fId].prevClus = -1;
+    return 0;
+  }
+  return -ERROR_INVALID;
 }
 

@@ -13,8 +13,12 @@
 #define uint32 unsigned long int
 
 
-int pa_printstr(char *str);
-int pa_printstrErr(char *str);
+int pa_printstr(const char *str);
+int pa_printstrErr(const char *str);
+
+int pa_printint(const int data);
+int pa_printuint(const unsigned int data);
+int pa_printhex(const unsigned int data);
 
 void pa_divmod(int num, int den, int *div, int *rem);
 int pa_mod(int num, int den);
@@ -22,7 +26,7 @@ int pa_div(int num, int den);
 
 void pa_swapstring(char *dest, int destLen);
 void pa_memset(void *vdest, int ival, unsigned long int len);
-void pa_memcpy(unsigned char *dest, unsigned char *src, unsigned long int len);
+void pa_memcpy(void *dest, void *src, unsigned long int len);
 int pa_strnlen(const char *src, int maxlen);
 int pa_strncpyEx(char *dest, char *src, unsigned long int len, int *iConsumed);
 int pa_strncpy(char *dest, char *src, unsigned long int len);
