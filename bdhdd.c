@@ -1,6 +1,6 @@
 /*
  * bdhdd.c - library for working with a ide hdd
- * v03Nov2004_1535
+ * v04Nov2004_1300
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -13,7 +13,6 @@
 #include <bdhdd.h>
 #include <errs.h>
 #include <utilsporta.h>
-#include <dm270utils.h>
 
 int paka_nanosleep(struct timespec *req)
 {
@@ -43,6 +42,54 @@ int paka_nanosleep(struct timespec *req)
   }while(1);
   return -ERROR_INVALID;
 }
+
+#ifdef BDHDD_USE_INSWK_DM270DMA
+
+#include <dm270utils.h>
+
+static inline void bdhdd_inswk_dm270dma(uint32 port, uint16* buf, int count)
+{
+
+#ifdef BDHDD_DM270DMA_SAFE
+  int iBuf;
+  /* REFCTL: Bit15-13 = 0,DMAChannel1BetweenEmifToSDRam */
+  iBuf=BDHDD_READ16(DM270_REFCTL);
+  BDHDD_WRITE16(DM270_REFCTL,iBuf&0x1fff);
+  /* DMACTL: Bit0 = 1,DMATransfer in progress */
+  if(BDHDD_READ16(DM270_DMACTL)&0x1)
+  {
+    fprintf(stderr,"ERR:BDHDD:Someother EMIF DMA in progress, quiting\n");
+    exit(-ERROR_FAILED);
+  }
+  /* FIXME: Source, Dest and Size should be multiples of 4 */
+#endif
+  /* DMADEVSEL: Bit6-4 = 1,DMASrcIsCF; Bit2-0 = 5,DMADestIsSDRam */
+  BDHDD_WRITE16(DM270_DMADEVSEL,0x15);
+  /* DMASIZE: */
+  BDHDD_WRITE16(DM270_DMASIZE,count*2);
+  /* SOURCEADDH: Bit12:=1,FixedAddr, Bit9-0: AddrHigh Relative to CF Region */
+  port -= BDHDD_DM270CF_CMDBR;
+  if(port > 16) /* Not DM270 CF, Maybe later add DM270 IDE support */
+  {
+    fprintf(stderr,"ERR:BDHDD:DM270DMA doesn't support nonCF now, quiting\n");
+    exit(-ERROR_INVALID);
+  }
+  BDHDD_WRITE16(DM270_SOURCEADDH,0x1000|((port>>16)&0x3ff));
+  BDHDD_WRITE16(DM270_SOURCEADDL,port&0xffff);
+  /* Dest high 10bits and low 16bits */
+  (int32)buf -= DM270_SDRAM_BASE; /* int as addr !> 2GB */
+  BDHDD_WRITE16(DM270_DESTADDH,((uint32)buf>>16)&0x3ff);
+  BDHDD_WRITE16(DM270_DESTADDL,(uint32)buf&0xffff); 
+#if DEBUG_PRINT_BDHDD > 5000
+  fprintf(stderr,"INFO:BDHDD:DM270DMA:Src[%ld] Dest[0x%lx] count [%d]\n",
+    port,(uint32)buf,count);
+#endif
+  /* DMACTL: Bit0 = 1,Start DMA */
+  BDHDD_WRITE16(DM270_DMACTL,0x1);
+  while(BDHDD_READ16(DM270_DMACTL)); /* Inefficient CPU Use but for now */
+}
+
+#endif
 
 static inline void bdhdd_inswk_simple(uint32 port, uint16* buf, int count)
 {
@@ -333,6 +380,7 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
     bd->CMDBR = BDHDD_IDE0_CMDBR; bd->CNTBR = BDHDD_IDE0_CNTBR;
     printf("INFO:BDHDD: PC ide0(Primary) - devId [%d] \n", devId);
   }
+#ifdef PRG_MODE_DM270
   else if(grpId == BDHDD_GRPID_DM270CF)
   {
     bd->CMDBR = BDHDD_DM270CF_CMDBR; bd->CNTBR = BDHDD_DM270CF_CNTBR;
@@ -352,6 +400,7 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
     /* BUSINTEN: Bit1=0,InttFor0->1; Bit0=0,CFRDYDoesntGenInt */
     BDHDD_WRITE16(0x30A20,0x0);
   }
+#endif
   else
   {
     fprintf(stderr,"ERR:BDHDD: ide??? - unknown \n");

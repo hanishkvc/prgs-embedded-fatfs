@@ -1,11 +1,11 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v27Oct2004_0011
+ * v04Oct2004_1225
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
-#define TESTFAT_PRGVER "v03Nov2004_1630"
+#define TESTFAT_PRGVER "v04Nov2004_1300"
 
 #include <sched.h>
 #include <sys/time.h>
@@ -26,12 +26,13 @@ struct TFat fat1;
 struct TFatBuffers fat1Buffers;
 struct TFatFsUserContext gUC;
 struct TFileInfo fInfo;
-#define DATABUF_SIZE (FATFSCLUS_MAXSIZE*32)
-uint8 dataBuf[DATABUF_SIZE], sBuf1[8*1024], sBuf2[8*1024], cCur;
+#define DATABUF_MAXSIZE (FATFSCLUS_MAXSIZE*64)
+uint8 dataBuf[DATABUF_MAXSIZE], sBuf1[8*1024], sBuf2[8*1024], cCur;
 struct timeval tv1, tv2;
 int32 swTimeInUSECS;
 void *pArg[8];
 char pBuf[1024];
+uint32 gDataBufSize;
 
 void testfat_starttime()
 {
@@ -169,10 +170,10 @@ int testfat_fileextract(struct TFatFsUserContext *uc, char *sFile, char *dFile)
   }
   prevClus = 0;
   ret = -1;
-  fatfs_checkbuf_forloadfileclus(uc->fat, DATABUF_SIZE);
+  fatfs_checkbuf_forloadfileclus(uc->fat, gDataBufSize);
   while(1)
   {
-    res=fatfs_loadfileclus_usefileinfo(uc->fat, &fInfo, dataBuf, DATABUF_SIZE, 
+    res=fatfs_loadfileclus_usefileinfo(uc->fat, &fInfo, dataBuf, gDataBufSize, 
       &dataClusRead, &prevClus);
     if((res != 0)&&(res != -ERROR_TRYAGAIN))
       break;
@@ -212,10 +213,10 @@ int testfat_checkreadspeed(struct TFatFsUserContext *uc, char *sFile, uint32 *fi
   *fileSize = fInfo.fileSize;
   prevClus = 0;
   ret = -1;
-  fatfs_checkbuf_forloadfileclus(uc->fat, DATABUF_SIZE);
+  fatfs_checkbuf_forloadfileclus(uc->fat, gDataBufSize);
   while(1)
   {
-    res=fatfs_loadfileclus_usefileinfo(uc->fat, &fInfo, dataBuf, DATABUF_SIZE, 
+    res=fatfs_loadfileclus_usefileinfo(uc->fat, &fInfo, dataBuf, gDataBufSize, 
       &dataClusRead, &prevClus);
     if((res != 0)&&(res != -ERROR_TRYAGAIN))
       break;
@@ -242,15 +243,16 @@ int main(int argc, char **argv)
   uint32 fileSize;
   struct sched_param schedP;
   
-  printf("[%s]Usage: %s <hd|file> <bdGrp,bdDev,partNo> <resetBD|noResetBD> <forceMBR|noForceMBR> <y|n interactive> <ni-file>\n", 
+  printf("[%s]Usage: %s <hd|file> <bdGrp,bdDev,partNo> <resetBD|noResetBD> <forceMBR|noForceMBR> <DataBufSize> <y|n interactive> <ni-file>\n", 
     TESTFAT_PRGVER, argv[0]);
-  printf("INFO:testfat:Databuf size is [%d]\n",DATABUF_SIZE);
+  gDataBufSize = DATABUF_MAXSIZE;
+  printf("INFO:testfat:MaxDatabuf size is [%ld]\n",gDataBufSize);
 
   /*** initialization ***/
   testfat_starttime();
   bdfile_setup(&bdkBDFile);
   bdhdd_setup(&bdkHdd);
-  if(argc < 6)
+  if(argc < 7)
   {
     printf("Not enough args, quiting\n");
     exit(10);
@@ -277,19 +279,28 @@ int main(int argc, char **argv)
     forceMbr = 1;
   else
     forceMbr = 0;
+  gDataBufSize = strtoul(argv[5],NULL,0);
+  if((gDataBufSize%FATFSCLUS_MAXSIZE) != 0)
+  {
+    fprintf(stderr,"INFO:testfat: DataBufSize [%ld] not multiple of [%d]\n",
+      gDataBufSize, FATFSCLUS_MAXSIZE);
+    gDataBufSize = DATABUF_MAXSIZE;
+  }
+  else
+    fprintf(stderr,"INFO:testfat: DataBufSize set to [%ld]\n", gDataBufSize);
 
   if(fsutils_mount(bdk,grpId,devId,partNo,&fat1,&fat1Buffers,forceMbr) != 0)
   {
-    fprintf(stderr,"ERR: mount failed\n");
+    fprintf(stderr,"ERR:testfat: mount failed\n");
     exit(20);
   }
   fatuc_init(&gUC, &fat1);
   testfat_stoptimedisp("Init");
 
-  if((argc>6) && (argv[5][0] == 'n'))
+  if((argc>7) && (argv[6][0] == 'n'))
   {
     testfat_starttime();
-    testfat_checkfile(&gUC, argv[6]);
+    testfat_checkfile(&gUC, argv[7]);
     testfat_stoptimedisp("checkFile");
     goto cleanup;
   }

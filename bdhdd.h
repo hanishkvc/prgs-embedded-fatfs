@@ -1,6 +1,6 @@
 /*
  * bdhdd.h - library for working with a ide HDD
- * v03Nov2004_1425
+ * v04Nov2004_1300
  * C Hanish Menon, 2004
  * 
  */
@@ -21,11 +21,13 @@
 #ifdef PRG_MODE_DM270
 #define BDHDD_USE_MEMMAPPED 1
 #undef BDHDD_USE_IOPERM 
-#define BDHDD_USE_INSWK_UNROLLED 1
+#define BDHDD_USE_INSWK_DM270DMA 1
+#define BDHDD_DM270DMA_SAFE 1
 #else
 #undef BDHDD_USE_MEMMAPPED
 #define BDHDD_USE_IOPERM 1
-#define BDHDD_USE_INSWK_SIMPLE 1
+//#define BDHDD_USE_INSWK_SIMPLE 1
+#define BDHDD_USE_INSWK_UNROLLED 1
 #endif
 
 #ifdef BDHDD_USE_INSWK_SIMPLE
@@ -34,7 +36,11 @@
 #ifdef BDHDD_USE_INSWK_UNROLLED
 #define BDHDD_INSWK bdhdd_inswk_unrolled
 #else
+#ifdef BDHDD_USE_INSWK_DM270DMA
+#define BDHDD_INSWK bdhdd_inswk_dm270dma
+#else
 #define BDHDD_INSWK insw
+#endif
 #endif
 #endif
 

@@ -10,6 +10,17 @@ ToDo
 * have to update fatfs->getfileinfo so that it doesn't convert the 16bit
   unicode to 8bit ascii.
 
+03Nov2004-2350
+* Added support for DM270 EMIF DMA between CF and SDRam
+  Now getting
+  at BlockDev level => 4MB/Sec (40MB contiguous data)
+  at FatFS level => 3.48MB/Sec (160MB contiguous file and 4MB Databuffer)
+  * Also enable compiler optimization, which would have helped 3 to 5 %
+* DANGER: This seems better than the bootloader level and PrKernel level
+  for FPMC and or Board24 or Board24MNC. HAVE TO VERIFY INTEGRITY of DATA READ.
+  As of know ASSUMING INTEGRITY as Directory contents seem to be proper and 
+  also as CFRDY is being checked by DM270 before accesing CF.
+
 03Nov2004
 * Added support for DM270 CF access
   * unrolling loop as helped speed here
