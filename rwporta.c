@@ -1,6 +1,6 @@
 /*
  * rwporta.h - cross platform portability layer for read/write
- * v14july2004
+ * v04Oct2004_1522
  * C Hanish Menon, 2003
  * 
  * v0.4 - 03Sep2003
@@ -333,6 +333,13 @@ uint8 buffer_read_uint8_le(uint8 **curPos)
 	return temp;
 }
 
+uint8 buffer_read_uint8_le_noup(uint8 *curPos)
+{
+  uint8 *tCurPos = curPos;
+  return buffer_read_uint8_le(&tCurPos);
+}
+
+
 /* 8 because curPos is a (uint8*) */
 #define MINIMUMBITSREAD 8
 /* This is because maxbits supported is 32 (uint32 ret value) */
@@ -340,12 +347,14 @@ uint8 buffer_read_uint8_le(uint8 **curPos)
 #define MAXNUMBITSSUPPORTED 32
 
 /* In this logic Bytes LSbit contains the bitsymbols LSbit */
+/* curBitPos should be <= 7 */
 uint32 buffer_read_bits_lsbbased(uint8 **curPos, uint32 *curBitPos, int length)
 {
   uint8 curTData;
   uint32 curData;
   int bitsFilled;
   uint32 mask;
+  int32 iMask;
 
   curTData = **curPos;
   curTData >>= *curBitPos;
@@ -368,7 +377,9 @@ uint32 buffer_read_bits_lsbbased(uint8 **curPos, uint32 *curBitPos, int length)
     (*curPos)++;
   }
   mask = MAXNUMBITSSUPPORTEDS_MSBSET;
-  (int32)mask >>= ((MAXNUMBITSSUPPORTED-length)-1);
+  iMask = (int32)mask;
+  iMask >>= ((MAXNUMBITSSUPPORTED-length)-1);
+  mask = (uint32)iMask;
   mask = ~mask;
   curData = curData & mask;
   return curData;
@@ -381,9 +392,11 @@ uint32 buffer_read_bits_msbbased(uint8 **curPos, uint32 *curBitPos, int length)
   uint32 curData;
   int bitsFilled;
   uint32 mask;
+  int32 iMask;
 
   curTData = **curPos;
-  mask = 0x80; mask >>= *curBitPos - 1; mask = ~mask;
+  mask = 0xFFFFFF80; iMask = mask;
+  iMask >>= *curBitPos - 1; mask = iMask; mask = ~mask;
   curTData &= mask;
   curData = curTData;  
   bitsFilled = MINIMUMBITSREAD-*curBitPos; 
@@ -411,7 +424,9 @@ uint32 buffer_read_bits_msbbased(uint8 **curPos, uint32 *curBitPos, int length)
    * it here to keep symmetry with _lsbbased version
    */
   mask = MAXNUMBITSSUPPORTEDS_MSBSET;
-  (int32)mask >>= ((MAXNUMBITSSUPPORTED-length)-1);
+  iMask = (int32)mask;
+  iMask >>= ((MAXNUMBITSSUPPORTED-length)-1);
+  mask = (uint32)iMask;
   mask = ~mask;
   curData = curData & mask;
   return curData;

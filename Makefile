@@ -8,10 +8,13 @@ PORTACFILES=rwporta.c utilsporta.c
 PORTAHFILES=rwporta.h utilsporta.h errorporta.h
 TESTPATH=/mnt/temp1
 
+FATFSCFILES=fatfs.c fsutils.c partk.c bdfile.c
+FATFSHFILES=fatfs.h partk.h bdfile.h inall.h
+
 all: $(CROSS)testfat
 
-$(CROSS)testfat: testfat.c fatfs.c fatfs.h bdfile.c bdfile.h partk.c partk.h inall.h $(PORTAHFILES) $(PORTACFILES)
-	$(CC) $(CFLAGS) -o $(CROSS)testfat testfat.c fatfs.c bdfile.c partk.c $(PORTACFILES)
+$(CROSS)testfat: testfat.c $(FATFSCFILES) $(FATFSHFILES) $(PORTAHFILES) $(PORTACFILES)
+	$(CC) $(CFLAGS) -o $(CROSS)testfat testfat.c $(FATFSCFILES) $(PORTACFILES)
 
 porta:
 	./hkvc-porta_setup.sh $(PORTACFILES) $(PORTAHFILES)
@@ -24,6 +27,7 @@ clean:
 allclean: clean
 	rm bdf.bd || /bin/true
 	rm tags || /bin/true
+	rm -i *.log || /bin/true
 
 16M: disk16M s16M f16M
 
@@ -65,8 +69,8 @@ f16M:
 	dd if=/dev/urandom of=$(TESTPATH)/spread.fil bs=512 count=16
 	umount $(TESTPATH)
 
-t16M: testfat
-	./testfat spread.fil > check_spreadfil.log
+test: testfat
+	./testfat n spread.fil > check_spreadfil.log
 
 disk2G:
 	rm -f /tmp/2G.bd

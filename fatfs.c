@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v30Sep2004-2300
+ * v04Oct2004-1300
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -44,6 +44,7 @@ int fatfs_loadbootsector(struct TFat *fat)
   int CountOfClusters, res;
   uint8 *pCur;
   uint32 tVerify;
+  uint8 bpbMedia;
 #ifdef DEBUG_PRINT_FATFS_BOOTSEC
   uint8 tBuf[32];
 #endif
@@ -67,7 +68,7 @@ int fatfs_loadbootsector(struct TFat *fat)
   fat->bs.numFats = buffer_read_uint8_le(&pCur);
   fat->bs.rootEntCnt = buffer_read_uint16_le(&pCur);
   fat->bs.totSec16 = buffer_read_uint16_le(&pCur);
-  pCur++;
+  bpbMedia=buffer_read_uint8_le(&pCur);
   fat->bs.fatSz16 = buffer_read_uint16_le(&pCur);
   pCur+=8;
   fat->bs.totSec32 = buffer_read_uint32_le(&pCur);
@@ -85,7 +86,7 @@ int fatfs_loadbootsector(struct TFat *fat)
   printf("NumFats [%d] FatSz16 [%d]\n",
     fat->bs.numFats, fat->bs.fatSz16);
   printf("Media [0x%x] RsvdSecCnt [%d] RootEntCnt [%d]\n",
-    *BPB_Media(fat->BBuf), fat->bs.rsvdSecCnt, fat->bs.rootEntCnt);
+    bpbMedia, fat->bs.rsvdSecCnt, fat->bs.rootEntCnt);
 #endif
 
   fat->bs.rootDirSecs = ((fat->bs.rootEntCnt*32)+(fat->bs.bytPerSec-1))/fat->bs.bytPerSec;
@@ -118,7 +119,7 @@ int fatfs_loadbootsector(struct TFat *fat)
     printf("FatSz32[%ld] ExtFlags[0x%x] FSVer[0x%x] RootClus[%ld] FSInfo[%d]\n",
       fat->bs.fatSz32, fat->bs.extFlags, fat->bs.fsVer, fat->bs.rootClus, fat->bs.fsInfo);
     printf("BootSig[0x%x] VolID[0x%lx] VolLab[%11s] FilSysType [%8s]\n",
-      *BS_32BootSig(fat->BBuf), fat->bs.volID, 
+      buffer_read_uint8_le_noup((fat->BBuf+66)), fat->bs.volID, 
       buffer_read_string_noup((fat->BBuf+71),11,tBuf,32),
       buffer_read_string_noup((fat->BBuf+82),8, (tBuf+16),16));
 #endif
@@ -133,7 +134,7 @@ int fatfs_loadbootsector(struct TFat *fat)
     fat->bs.volID = buffer_read_uint32_le(&pCur);
 #ifdef DEBUG_PRINT_FATFS_BOOTSEC
     printf("BootSig[0x%x] VolID[0x%lx] VolLab[%11s] FilSysType [%8s]\n",
-      *BS_16BootSig(fat->BBuf), fat->bs.volID, 
+      buffer_read_uint8_le_noup(fat->BBuf+38), fat->bs.volID, 
       buffer_read_string_noup((fat->BBuf+43),11,tBuf,32),
       buffer_read_string_noup((fat->BBuf+54),8,(tBuf+16),16));
 #endif

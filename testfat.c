@@ -1,6 +1,6 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v30Sep2004_2300
+ * v04Oct2004_1857
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -17,7 +17,6 @@ struct TFat fat1;
 struct TFatBuffers fat1Buffers;
 struct TFatFsUserContext gUC;
 struct TFileInfo fInfo;
-pikT pInfo;
 #define DATABUF_SIZE (FATFSCLUS_MAXSIZE*10)
 uint8 dataBuf[DATABUF_SIZE], sBuf1[8*1024], sBuf2[8*1024], cCur;
 struct timeval tv1, tv2;
@@ -31,7 +30,7 @@ void testfat_starttime()
 void testfat_stoptimedisp(char *sPrompt)
 {
   gettimeofday(&tv2, NULL);
-  printf("*** Time spent [%s] ***\n", sPrompt);
+  fprintf(stderr,"*** Time spent [%s] ***\n", sPrompt);
   fprintf(stderr,"tv1 [%ld sec: %ld usec] tv2 [%ld sec: %ld usec]\n", 
     tv1.tv_sec, tv1.tv_usec, tv2.tv_sec, tv2.tv_usec);
   if((tv2.tv_sec-tv1.tv_sec) == 0)
@@ -171,38 +170,27 @@ int testfat_fileextract(struct TFatFsUserContext *uc, char *sFile, char *dFile)
 
 int main(int argc, char **argv)
 {
-  uint32  baseSec;
   int bExit;
 
-  printf("Usage: %s <y|n = partition> <y|n = interactive mode>\n", 
+  printf("Usage: %s <y|n = interactive mode>\n", 
     argv[0]);
 
   /*** initialization ***/
   testfat_starttime();
   bdfile_setup();
-  bdkBDFile.init(&bdkBDFile);
-  if((argc > 1) && (argv[1][0] == 'y'))
-  {
-    printf("************* partition loading ******************\n");
-    if(partk_get(&pInfo,&bdkBDFile) != 0)
-      exit(1);
-    baseSec = pInfo.fLSec[0];
-  }
-  else
-    baseSec = 0;
-  
-  if(fatfs_init(&fat1, &fat1Buffers, &bdkBDFile, baseSec)!= 0)
-  {
-    bdkBDFile.cleanup(&bdkBDFile);
-    return -1;
-  }
+  fsutils_mount(&bdkBDFile, &fat1, &fat1Buffers, 0);
   fatuc_init(&gUC, &fat1);
   testfat_stoptimedisp("Init");
 
-  /*** interactive commands ***/
-  if((argc > 2) && (argv[2][0] == 'y'))
+  if((argc > 1) && (argv[1][0] == 'n'))
   {
-    do{
+    testfat_starttime();
+    testfat_checkfile(&gUC, argv[2]);
+    testfat_stoptimedisp("checkFile");
+    goto cleanup;
+  }
+  /*** interactive commands ***/
+  do{
     bExit = 0;
     printf("==============curDir [%s]===============\n", gUC.sCurDir);
     printf("(l) dirListing (e) fileExtract (E) Exit\n");
@@ -246,12 +234,10 @@ int main(int argc, char **argv)
       bExit = 1;
       break;
     }
-    }while(!bExit);
-  }
+  }while(!bExit);
 
-  /*** cleanup ***/
-  fatfs_cleanup(&fat1);
-  bdkBDFile.cleanup(&bdkBDFile);
+cleanup:  /*** cleanup ***/
+  fsutils_umount(&bdkBDFile,&fat1);
   return 0; 
 }
 

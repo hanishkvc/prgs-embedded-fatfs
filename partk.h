@@ -1,6 +1,6 @@
 /*
  * partk.h - library for working with partition table
- * v30Sep2004-2145
+ * v04Oct2004_1850
  * C Hanish Menon <hanishkvc>, 16july2004
  * 
  */
@@ -22,24 +22,27 @@
 #define PARTK4_OFFSET 0x1ee
 #define PARTKEXECMARK_OFFSET 0x1fe
 
+#define PARTK_BS_STARTBYTE_0 0xeb
+#define PARTK_BS_STARTBYTE_1 0xe9
+
 /* In partition table Cyl and Sector are embedded in a single 16bit number
    like this => (MSB-LSB) 8bitCylLo,2bitCylHi,6bitSec */
 
 typedef struct partInfoKT
 {
-  uint8 active[4];
-  uint8 sHead[4];
-  uint16 sCyl[4]; 
-  uint8 sSec[4];
-  uint8 type[4];
-  uint8 eHead[4];
-  uint16 eCyl[4];
-  uint8 eSec[4];
-  uint32 fLSec[4]; /* logical linear sector numbering */
-  uint32 nLSec[4];
+  uint8 active[PARTK_NUMPARTS];
+  uint8 sHead[PARTK_NUMPARTS];
+  uint16 sCyl[PARTK_NUMPARTS]; 
+  uint8 sSec[PARTK_NUMPARTS];
+  uint8 type[PARTK_NUMPARTS];
+  uint8 eHead[PARTK_NUMPARTS];
+  uint16 eCyl[PARTK_NUMPARTS];
+  uint8 eSec[PARTK_NUMPARTS];
+  uint32 fLSec[PARTK_NUMPARTS]; /* logical linear sector numbering */
+  uint32 nLSec[PARTK_NUMPARTS];
 } pikT;
 
-int partk_get(pikT *pi, bdkT *bd);
+int partk_get(pikT *pi, bdkT *bd, char *pBuf);
 
 #endif
 

@@ -1,6 +1,6 @@
 /*
  * fatfs.h - library for working with fat filesystem
- * v30Sep2004_2300
+ * v04Oct2004_1820
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -18,6 +18,7 @@
 #define FATBOOTSEC_MAXSIZE 512
 #define FATFAT_MAXSIZE (2048*1024)
 #define FATROOTDIR_MAXSIZE (512*1024)
+
 #define FATDIRENTRY_SIZE 32
 #define FATDIRENTRYNAME_SIZE 11
 #define FATDIRENTRYLFN_SIZE 255
@@ -37,32 +38,6 @@
 #define FATATTR_DIR      0x10
 #define FATATTR_ARCHIVE  0x20
 #define FATATTR_LONGNAME 0x0F
-
-#define BS_OEMName_sz8(base) (char*)((long)base+3)
-#define BPB_BytPerSec(base) (unsigned short*)((long)base+11)
-#define BPB_SecPerClus(base) (unsigned char*)((long)base+13)
-#define BPB_RsvdSecCnt(base) (unsigned short*)((long)base+14)
-#define BPB_NumFats(base) (unsigned char*)((long)base+16)
-#define BPB_RootEntCnt(base) (unsigned short*)((long)base+17)
-#define BPB_TotSec16(base) (unsigned short*)((long)base+19)
-#define BPB_Media(base) (unsigned char*)((long)base+21)
-#define BPB_FatSz16(base) (unsigned short*)((long)base+22)
-#define BPB_HiddSec(base) (unsigned long*)((long)base+28)
-#define BPB_TotSec32(base) (unsigned long*)((long)base+32)
-#define BS_16BootSig(base) (unsigned char*)((long)base+38)
-#define BS_16VolID(base) (unsigned long*)((long)base+39)
-#define BS_16VolLab_sz11(base) (unsigned char*)((long)base+43)
-#define BS_16FilSysType_sz8(base) (unsigned char*)((long)base+54)
-#define BPB_FatSz32(base) (unsigned long*)((long)base+36)
-#define BPB_32ExtFlags(base) (unsigned short*)((long)base+40)
-#define BPB_32FSVer(base) (unsigned short*)((long)base+42)
-#define BPB_32RootClus(base) (unsigned long*)((long)base+44)
-#define BPB_32FSInfo(base) (unsigned short*)((long)base+48)
-#define BPB_32BkBootSec(base) (unsigned short*)((long)base+50)
-#define BS_32BootSig(base) (unsigned char*)((long)base+66)
-#define BS_32VolID(base) (unsigned long*)((long)base+67)
-#define BS_32VolLab_sz11(base) (unsigned char*)((long)base+71)
-#define BS_32FilSysType_sz8(base) (unsigned char*)((long)base+82)
 
 #define fatfs_firstsecofclus(fat, N) (((N-2)*fat->bs.secPerClus)+fat->bs.firstDataSec)
 /* assumes FAT is a uint8 array */
@@ -148,6 +123,12 @@ int fatfs_checkbuf_forloadfileclus(struct TFat *fat, uint32 bufLen);
 int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
       uint8 *buf, uint32 bufLen, uint32 *totalClusRead, uint32 *prevClus);
 int fatfs_cleanup(struct TFat *fat);
+
+/* From fsutils */
+/* partNo starts from 0 */
+int fsutils_mount(bdkT *bd, struct TFat *fat, struct TFatBuffers *fatBuffers,
+      int partNo);
+int fsutils_umount(bdkT *bd, struct TFat *fat);
 
 /* Notes
  * * THREADED prgs:  A given user context shouldn't be actively 

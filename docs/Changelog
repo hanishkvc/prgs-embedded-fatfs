@@ -2,6 +2,22 @@ Changelog - fatfs
 C Hanish Menon <hanishkvc>
 ---------------------------
 
+04Oct2004
+* cycle to stars continues
+* Removed the nonportable macros for accessing members of the bootsector.
+  These are nonportable as there are fields with wrong alignment (based on
+  field size) which processors like ARM/Mips don't support in h/w but would
+  require s/w support in OS.
+* Partition logic identifies if it has a MBR at hand
+* mount and umount added
+
+
+30Sep2004
+* Incorporated new porta libraries into fatfs
+* Made blockdev data and routines into a structure so that it can be
+  embedded into Fat structure. Also now a given Fat system could be in 
+  any among the many blockdevs in the system.
+
 22july2004
 * Made testfat functions use uc pointer as one of their arguments.
   So that we can test/work with multiple fat filesystems in a given run.

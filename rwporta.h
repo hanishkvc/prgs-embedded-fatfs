@@ -1,6 +1,6 @@
 /*
  * rwporta.h - cross platform portability layer for read/write
- * v14july2004
+ * v04Oct2004_1522
  * C Hanish Menon, 2003
  *
  */
@@ -63,6 +63,7 @@ uint16 buffer_write_uint16_le(uint8 **curPos, uint16 data);
 
 #define buffer_read_uint8_be buffer_read_uint8_le
 uint8 buffer_read_uint8_le(uint8 **curPos); 
+uint8 buffer_read_uint8_le_noup(uint8 *curPos); 
 
 uint32 buffer_read_bits_lsbbased(uint8 **curPos, uint32 *curBitPos, int length);
 uint32 buffer_read_bits_msbbased(uint8 **curPos, uint32 *curBitPos, int length);

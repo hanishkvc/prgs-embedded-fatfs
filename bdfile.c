@@ -1,6 +1,6 @@
 /*
  * bdfile.c - library for working with a linux loop based filesystem file
- * v30Sep2004_2230
+ * v04Oct2004_1826
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -25,6 +25,8 @@ int bdf_init(bdkT *bd)
     perror("BDFILE: Opening file");
     exit(10);
   }
+  bd->secSize = BDK_SECSIZE;
+  bd->totSecs = 0xFFFFFFFF;
   return 0;
 }
 
@@ -77,7 +79,6 @@ int bdfile_setup()
   bdkBDFile.init = bdf_init;
   bdkBDFile.cleanup = bdf_cleanup;
   bdkBDFile.get_sectors = bdf_get_sectors;
-  bdkBDFile.secSize = BDK_SECSIZE;
   pa_strncpy(bdkBDFile.name,"bdfile",BDK_DEVNAMELEN);
   return 0;
 }

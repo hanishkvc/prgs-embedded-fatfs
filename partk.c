@@ -1,6 +1,6 @@
 /*
  * partk.c - library for working with partition table
- * v30Sep2004-2145
+ * v04Oct2004_1856
  * C Hanish Menon <hanishkvc>, 16july2004
  * 
  */
@@ -9,9 +9,9 @@
 #include <bdfile.h>
 #include <partk.h>
 
-int partk_get(pikT *pi, bdkT *bd)
+int partk_get(pikT *pi, bdkT *bd, char *pBuf)
 {
-  uint8 pBuf[BDK_SECSIZE], *pCur;
+  uint8 *pCur;
   uint16 t1, iPart, tVerify;
   uint16 pOffsets[PARTK_NUMPARTS] 
     = { PARTK1_OFFSET, PARTK2_OFFSET, PARTK3_OFFSET, PARTK4_OFFSET };
@@ -24,6 +24,10 @@ int partk_get(pikT *pi, bdkT *bd)
     printf("partk:get:ERROR: 0xaa55 missing from offset %d\n", PARTKEXECMARK_OFFSET);
     return -1;
   }
+  pCur=pBuf;
+  tVerify=buffer_read_uint8_le(&pCur);
+  if((tVerify == PARTK_BS_STARTBYTE_0) || (tVerify == PARTK_BS_STARTBYTE_1))
+    return -2;
 
   for(iPart = 0; iPart < PARTK_NUMPARTS; iPart++)
   {
