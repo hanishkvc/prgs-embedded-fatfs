@@ -30,11 +30,17 @@ allclean: clean
 	rm -i *.log || /bin/true
 
 16M: disk16M s16M f16M
+16M32: disk16M32 s16M f16M
 
 disk16M:
 	rm -f /tmp/16M.bd
 	dd if=/dev/zero of=/tmp/16M.bd bs=4096 count=4096
-	/sbin/mkdosfs -v /tmp/16M.bd > /tmp/16M.meta
+	/sbin/mkdosfs -F 16 -v /tmp/16M.bd > /tmp/16M.meta
+
+disk16M32:
+	rm -f /tmp/16M.bd
+	dd if=/dev/zero of=/tmp/16M.bd bs=4096 count=4096
+	/sbin/mkdosfs -F 32 -v /tmp/16M.bd > /tmp/16M.meta
 s16M:
 	rm -f bdf.bd
 	ln -s /tmp/16M.bd bdf.bd
@@ -66,6 +72,7 @@ f16M:
 	rm $(TESTPATH)/abc3.txt
 	rm $(TESTPATH)/abc4.txt
 	rm $(TESTPATH)/abc6.txt
+	rm $(TESTPATH)/zero3.log
 	dd if=/dev/urandom of=$(TESTPATH)/spread.fil bs=512 count=16
 	umount $(TESTPATH)
 

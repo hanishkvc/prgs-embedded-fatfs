@@ -1,6 +1,6 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v04Oct2004_1857
+ * v05Oct2004_1610
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -104,8 +104,13 @@ int testfat_checkfile(struct TFatFsUserContext *uc, char *cFile)
     do
     {
       clSize = CLUSLIST_SIZE; 
-      res = fatfs16_getopticluslist_usefileinfo(uc->fat, &fInfo, cl, &clSize, 
+      res = fatfs_getopticluslist_usefileinfo(uc->fat, &fInfo, cl, &clSize, 
         &prevClus);
+      if((res!=0) && (res!=-ERROR_TRYAGAIN))
+      {
+        fprintf(stderr,"ERR:testfat:checkfile:FATchain not valid for file\n");
+	return -1;
+      }
       for(iCur=0; iCur < clSize; iCur++)
       {
         printf("[%s] Optimised ClusList baseClus[%ld] adjClusCnt[%ld] prevClus[%ld]\n",

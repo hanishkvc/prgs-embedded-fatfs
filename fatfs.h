@@ -1,12 +1,14 @@
 /*
  * fatfs.h - library for working with fat filesystem
- * v04Oct2004_1820
+ * v05Oct2004_2153
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
 #ifndef _FATFS_H_
 #define _FATFS_H_
+
+#define FATFS_LIBVER "v05Oct2004_2157"
 
 #include <rwporta.h>
 #include <bdk.h>
@@ -15,7 +17,8 @@
 #define DEBUG_PRINT_FATFS 11
 #endif
 
-#define FATBOOTSEC_MAXSIZE 512
+#define FATSEC_MAXSIZE 4096
+#define FATBOOTSEC_MAXSIZE FATSEC_MAXSIZE
 #define FATFAT_MAXSIZE (2048*1024)
 #define FATROOTDIR_MAXSIZE (512*1024)
 
@@ -39,12 +42,26 @@
 #define FATATTR_ARCHIVE  0x20
 #define FATATTR_LONGNAME 0x0F
 
+#define FAT16_CLEANSHUTBIT 0x8000
+#define FAT16_HARDERRBIT 0x4000
+#define FAT32_CLEANSHUTBIT 0x08000000
+#define FAT32_HARDERRBIT   0x04000000
+
+#define FAT16_EOF 0xFFF8
+#define FAT16_BADCLUSTER 0xFFF7
+#define FAT32_EOF 0x0FFFFFF8
+#define FAT32_BADCLUSTER 0x0FFFFFF7
+#define FATFS_FREECLUSTER 0x0
+
+#define FAT32_EXTFLAGS_ACTIVEFAT(N) ((N)&0xF)
+#define FAT32_FSVER 0x0000
+
 #define fatfs_firstsecofclus(fat, N) (((N-2)*fat->bs.secPerClus)+fat->bs.firstDataSec)
 /* assumes FAT is a uint8 array */
-#define FAT16Offset(N) (N*2)
-#define FAT32Offset(N) (N*4) 
-#define FATFS16_FatEntryInSec(fat, N) (fat->bs.rsvdSecCnt+(FAT16Offset(N)/fat->bs.bytPerSec))
-#define FATFS16_FatEntryAtOffset(fat, N) (FAT16Offset(N)%fat->bs.bytPerSec)
+#define FAT16OffsetInBytes(N) (N*2)
+#define FAT32OffsetInBytes(N) (N*4) 
+#define FATFS16_FatEntryInSec(fat, N) (fat->bs.rsvdSecCnt+(FAT16OffsetInBytes(N)/fat->bs.bytPerSec))
+#define FATFS16_FatEntryAtOffset(fat, N) (FAT16OffsetInBytes(N)%fat->bs.bytPerSec)
 /* end of assumption */
 
 struct TFatBootSector
@@ -76,10 +93,16 @@ struct TFatBuffers
 struct TFat
 {
   bdkT *bd;	
-  uint32 baseSec;
+  uint32 baseSec, totSecs;
   uint8 *BBuf, *FBuf, *RDBuf;
   uint32 rdSize;
   struct TFatBootSector bs;
+  int curFatNo;
+  /* Functions */
+  int (*loadrootdir)(struct TFat *fat);
+  int (*getfatentry)(struct TFat *fat, uint32 iEntry,
+          uint32 *iValue, uint32 *iActual);
+  int (*checkfatbeginok)(struct TFat *fat);
 };
 
 struct TClusList
@@ -103,20 +126,25 @@ struct TFatFsUserContext
   uint8 fName[FATFSLFN_SIZE];
 };
 
-extern struct TFat gFat;
-
 int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs, 
-      bdkT *bd, int baseSec);
+      bdkT *bd, int baseSec, int totSecs);
 int fatfs_loadbootsector(struct TFat *fat);
-int fatfs_loadfat(struct TFat *fat);
+int fatfs_loadfat(struct TFat *fat, int fatNo);
+int fatfs16_checkfatbeginok(struct TFat *fat);
+int fatfs32_checkfatbeginok(struct TFat *fat);
 int fatfs16_loadrootdir(struct TFat *fat);
+int fatfs32_loadrootdir(struct TFat *fat);
 int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
       struct TFileInfo *fInfo, uint32 *prevPos);
-int fatfs16_getopticluslist_usefileinfo(struct TFat *fat, 
+int fatfs16_getfatentry(struct TFat *fat, uint32 iEntry,
+      uint32 *iValue, uint32 *iActual);
+int fatfs32_getfatentry(struct TFat *fat, uint32 iEntry, 
+      uint32 *iValue, uint32 *iActual);
+int fatfs_getopticluslist_usefileinfo(struct TFat *fat, 
       struct TFileInfo *fInfo, struct TClusList *cl, int *clSize, 
       uint32 *prevClus);
 int fatfs_loadfileallsec_usefileinfo(struct TFat *fat, 
-      struct TFileInfo *fInfo, uint8 *buf, int32 bufLen);
+      struct TFileInfo *fInfo, uint8 *buf, int32 bufLen, uint32 *totSecsRead);
 /* Call this before calling loadfileclus to verify if any 
    empty space can occur at end of the given buffer */
 int fatfs_checkbuf_forloadfileclus(struct TFat *fat, uint32 bufLen);
@@ -135,7 +163,7 @@ int fsutils_umount(bdkT *bd, struct TFat *fat);
  *   used by fatuc_xxx functions at the same time
  * * ch[ange]dir: user giving wrong path won't affect the uc
  * * updatetempdirbufinfo: Always call this before using tempDirBuf 
- *   of uc as tempDirBuf could point to gFat.RDBuf in some cases
+ *   of uc as tempDirBuf could point to TFat.RDBuf in some cases
  */
 void fatuc_updatetempdirbufinfo(struct TFatFsUserContext *uc);
 int fatuc_changedir(struct TFatFsUserContext *uc, char *fDirName,

@@ -1,6 +1,6 @@
 /*
  * fsutils.c - library for fs utility functions
- * v04Oct2004_1819
+ * v05Oct2004_1137
  * C Hanish Menon <hanishkvc>, 14july2004
  */
 #include <partk.h>
@@ -10,7 +10,7 @@ int fsutils_mount(bdkT *bd, struct TFat *fat, struct TFatBuffers *fatBuffers,
       int partNo)
 {
   pikT pInfo;
-  int iRet,baseSec;
+  int iRet,baseSec,totSecs;
   
   if((iRet=bd->init(bd)) != 0)
     return iRet;
@@ -18,14 +18,16 @@ int fsutils_mount(bdkT *bd, struct TFat *fat, struct TFatBuffers *fatBuffers,
   {
     printf("DEBUG:mount: no MBR\n");
     baseSec = 0;
+    totSecs = bd->totSecs;
   }
   else
   {
     printf("DEBUG:mount: yes MBR\n");
     baseSec = pInfo.fLSec[partNo];
+    totSecs = pInfo.nLSec[partNo];
   }
   
-  if((iRet=fatfs_init(fat, fatBuffers, bd, baseSec)) != 0)
+  if((iRet=fatfs_init(fat, fatBuffers, bd, baseSec, totSecs)) != 0)
   {
     bd->cleanup(bd);
     return iRet;
@@ -35,8 +37,10 @@ int fsutils_mount(bdkT *bd, struct TFat *fat, struct TFatBuffers *fatBuffers,
 
 int fsutils_umount(bdkT *bd, struct TFat *fat)
 {
-  fatfs_cleanup(fat);
-  bd->cleanup(bd);
+  int iRet;
+  
+  if((iRet=fatfs_cleanup(fat)) != 0) return iRet;
+  if((iRet=bd->cleanup(bd)) != 0) return iRet;
   return 0;
 }
 

@@ -1,6 +1,6 @@
 /*
  * bdfile.c - library for working with a linux loop based filesystem file
- * v04Oct2004_1826
+ * v05Oct2004_1059
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -25,7 +25,7 @@ int bdf_init(bdkT *bd)
     perror("BDFILE: Opening file");
     exit(10);
   }
-  bd->secSize = BDK_SECSIZE;
+  bd->secSize = BDK_SECSIZE_512;
   bd->totSecs = 0xFFFFFFFF;
   return 0;
 }

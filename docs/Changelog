@@ -2,15 +2,44 @@ Changelog - fatfs
 C Hanish Menon <hanishkvc>
 ---------------------------
 
+05Oct2004
+* Added function pointers to TFat structure so that during fatfs_init
+  Proper functions are assigned to these pointers depending on the
+  FATFS type i.e 12 or 16 or 32. And thus other parts of the fatfs
+  logic are not required to bother about the fatfs type. This is
+  the best flexible mechanism that can be put in place other than
+  having seperate hardcoded fat12/fat16/fat32 type functions.
+  * The low level functions are
+    * Loading root dir 
+    * Getting a Fat Entry
+      * FIXME: In future we can make the FAT table handling flexible
+        i.e Either Full FAT table could be in Memory or we could load
+	parts of FAT Table as required by updating this function.
+  * Updated other parts so that they use this mechanism
+* Added support to check BlockDev sector size matches FatFS sector size
+* Partiton or Physical volume size is embedded in TFat structure and 
+  verified to see that FatFS bootsector doesn't tell that FatFS exceeds
+  this.
+* active Fat Table is identified for Fat16(implicitly 0) and Fat32(extflags)
+* Added support for Fat32 read, directory listing, chdir etc except 
+  Write operations(same status as Fat16).  Achieved by providing support 
+  for fatfs32_getfatentry and fatfs32_loadrootdir, using simplified 
+  generalized mechanism added today.
+* Logic to autodetect possible Fat32 FS in a small volume suitable for
+  Fat12 or Fat16 added.
+* Check for and avoid working on Volume with DiskI/O error during last mount
+  or Volume which wasn't Cleanly shut.
+
 04Oct2004
 * cycle to stars continues
-* Removed the nonportable macros for accessing members of the bootsector.
+* Removed the nonportable but fast macros for accessing members 
+  of the bootsector.
   These are nonportable as there are fields with wrong alignment (based on
   field size) which processors like ARM/Mips don't support in h/w but would
   require s/w support in OS.
 * Partition logic identifies if it has a MBR at hand
+  Also it uses a buffer passed to it to read the 0th sector into.
 * mount and umount added
-
 
 30Sep2004
 * Incorporated new porta libraries into fatfs

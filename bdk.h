@@ -1,6 +1,6 @@
 /*
  * bdk.h - generic blockdev logic
- * v04Oct2004_1826
+ * v05Oct2004_1058
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -8,7 +8,8 @@
 #define _BDK_H_
 
 #define BDK_NUMDEVICES 16
-#define BDK_SECSIZE 512
+#define BDK_MAXSECSIZE 4096
+#define BDK_SECSIZE_512 512
 #define BDK_DEVNAMELEN 16
 
 typedef struct blockDevKT
