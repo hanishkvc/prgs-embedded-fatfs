@@ -5,11 +5,14 @@
  * 
  */
 
+#define TESTFAT_PRGVER "v07Oct2004_1808"
+
 #include <sys/time.h>
 
 #include <inall.h>
 #include <errs.h>
 #include <bdfile.h>
+#include <bdhdd.h>
 #include <fatfs.h>
 #include <partk.h>
 
@@ -153,9 +156,11 @@ int testfat_fileextract(struct TFatFsUserContext *uc, char *sFile, char *dFile)
       &dataClusRead, &prevClus);
     if((res != 0)&&(res != -ERROR_TRYAGAIN))
       break;
+#if DEBUG_TESTFAT > 15    
     else
       printf("testfat:INFO: loadfileclus clusRead[%ld] prevClus[%ld]\n", 
         dataClusRead, prevClus);
+#endif    
     bytesRead = dataClusRead*uc->fat->bs.secPerClus*uc->fat->bs.bytPerSec;
     resFW=fwrite(dataBuf,1, bytesRead, fDest);
     if(resFW != bytesRead)
@@ -183,6 +188,9 @@ int main(int argc, char **argv)
   /*** initialization ***/
   testfat_starttime();
   bdfile_setup();
+  bdhdd_setup();
+  fsutils_mount(&bdkHdd, &fat1, &fat1Buffers, 0);
+  fsutils_umount(&bdkHdd,&fat1);
   fsutils_mount(&bdkBDFile, &fat1, &fat1Buffers, 0);
   fatuc_init(&gUC, &fat1);
   testfat_stoptimedisp("Init");
@@ -197,7 +205,7 @@ int main(int argc, char **argv)
   /*** interactive commands ***/
   do{
     bExit = 0;
-    printf("==============curDir [%s]===============\n", gUC.sCurDir);
+    printf("[%s]========curDir [%s]========\n", TESTFAT_PRGVER,gUC.sCurDir);
     printf("(l) dirListing (e) fileExtract (E) Exit\n");
     printf("(c) chDir (f) checkFile\n");
     cCur = fgetc(stdin); fgetc(stdin);

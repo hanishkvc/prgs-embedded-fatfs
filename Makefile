@@ -7,9 +7,10 @@ CFLAGS += $($(CROSS)C_FLAGS)
 PORTACFILES=rwporta.c utilsporta.c
 PORTAHFILES=rwporta.h utilsporta.h errorporta.h
 TESTPATH=/mnt/temp1
+INSTALLPATH=/hanishkvc/samples/fatfs
 
-FATFSCFILES=fatfs.c fsutils.c partk.c bdfile.c
-FATFSHFILES=fatfs.h partk.h bdfile.h inall.h
+FATFSCFILES=fatfs.c fsutils.c partk.c bdfile.c bdhdd.c
+FATFSHFILES=fatfs.h partk.h bdfile.h inall.h bdhdd.h
 
 all: $(CROSS)testfat
 
@@ -18,6 +19,9 @@ $(CROSS)testfat: testfat.c $(FATFSCFILES) $(FATFSHFILES) $(PORTAHFILES) $(PORTAC
 
 porta:
 	./hkvc-porta_setup.sh $(PORTACFILES) $(PORTAHFILES)
+
+install:
+	mv testfat $(INSTALLPATH)/
 
 clean:
 	rm $(CROSS)testfat || /bin/true
