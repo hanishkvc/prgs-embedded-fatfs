@@ -42,7 +42,7 @@ int bdf_get_sectors(bdkT *bd, long sec, long count, char*buf)
 {
   int res, toRead;
 
-#if (DEBUG_PRINT_BDFILE > 10)
+#if (DEBUG_PRINT_BDFILE > 15)
   printf("INFO:bdfile: sec[%ld] count[%ld]\n", sec, count);
 #endif
 
@@ -114,6 +114,7 @@ int bdfile_setup()
   bdkBDFile.cleanup = bdf_cleanup;
   bdkBDFile.reset = bdf_reset;
   bdkBDFile.get_sectors = bdf_get_sectors;
+  bdkBDFile.get_sectors_benchmark = NULL;
   pa_strncpy(bdkBDFile.name,"bdfile",BDK_DEVNAMELEN);
   return 0;
 }

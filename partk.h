@@ -1,6 +1,6 @@
 /*
  * partk.h - library for working with partition table
- * v11Oct2004_1450
+ * v14Oct2004_0935
  * C Hanish Menon <hanishkvc>, 16july2004
  * 
  */
@@ -47,7 +47,7 @@ typedef struct partInfoKT
   uint32 nLSec[PARTK_NUMPARTS];
 } pikT;
 
-int partk_get(pikT *pi, bdkT *bd, char *pBuf);
+int partk_get(pikT *pi, bdkT *bd, char *pBuf, int forceMbr);
 
 #endif
 

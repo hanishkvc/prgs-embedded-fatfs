@@ -1,6 +1,6 @@
 /*
  * partk.c - library for working with partition table
- * v11Oct2004_1448
+ * v14Oct2004_0935
  * C Hanish Menon <hanishkvc>, 16july2004
  * 
  */
@@ -9,7 +9,7 @@
 #include <bdfile.h>
 #include <partk.h>
 
-int partk_get(pikT *pi, bdkT *bd, char *pBuf)
+int partk_get(pikT *pi, bdkT *bd, char *pBuf, int forceMbr)
 {
   uint8 *pCur;
   uint16 t1, iPart, tVerify;
@@ -21,28 +21,33 @@ int partk_get(pikT *pi, bdkT *bd, char *pBuf)
     fprintf(stderr,"ERR:partk: getting 0th sector\n");
     return -ERROR_FAILED;
   }
-  pCur = pBuf+PARTKEXECMARK_OFFSET;
-  tVerify = buffer_read_uint16_le(&pCur);
-  if(tVerify != 0xaa55)
+  if(forceMbr == 0)
   {
-    fprintf(stderr,"ERR:partk:NoMBR: 0xaa55 missing from offset %d\n",
-      PARTKEXECMARK_OFFSET);
-    return -ERROR_PARTK_NOMBR;
-  }
-  pCur=pBuf;
-  tVerify=buffer_read_uint8_le(&pCur);
-  if((tVerify==PARTK_BS_STARTBYTE_T0) || (tVerify==PARTK_BS_STARTBYTE_T1))
-  {
-    fprintf(stderr,"ERR:partk:NoMBR: BootSec byte found at byte0\n");
-    return -ERROR_PARTK_NOMBR;
-  }
+    pCur = pBuf+PARTKEXECMARK_OFFSET;
+    tVerify = buffer_read_uint16_le(&pCur);
+    if(tVerify != 0xaa55)
+    {
+      fprintf(stderr,"ERR:partk:NoMBR: 0xaa55 missing from offset %d\n",
+        PARTKEXECMARK_OFFSET);
+      return -ERROR_PARTK_NOMBR;
+    }
+    pCur=pBuf;
+    tVerify=buffer_read_uint8_le(&pCur);
+    if((tVerify==PARTK_BS_STARTBYTE_T0) || (tVerify==PARTK_BS_STARTBYTE_T1))
+    {
+      fprintf(stderr,"ERR:partk:NoMBR: BootSec byte found at byte0\n");
+      fprintf(stderr,"INFO:partk:Bootloaders like grub in MBR, can trigger this, If so forceMbr\n");
+      return -ERROR_PARTK_NOMBR;
+    }
 #ifdef PARTK_VERIFY_MBRSTARTBYTE  
-  if(tVerify != PARTK_MBR_STARTBYTE_T0)
-  {
-    fprintf(stderr,"ERR:partk:NoMBR: MBRs byte not found at byte0\n");
-    return -ERROR_PARTK_NOMBR;
-  }
+    if(tVerify != PARTK_MBR_STARTBYTE_T0)
+    {
+      fprintf(stderr,"ERR:partk:NoMBR: MBRs byte not found at byte0\n");
+      fprintf(stderr,"INFO:partk:Non booting hdd/CF can trigger this, if so forceMbr\n");
+      return -ERROR_PARTK_NOMBR;
+    }
 #endif
+  }
 
   for(iPart = 0; iPart < PARTK_NUMPARTS; iPart++)
   {

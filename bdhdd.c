@@ -1,10 +1,11 @@
 /*
  * bdhdd.c - library for working with a ide hdd
- * v12Oct2004_1732
+ * v15Oct2004_2200
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
+#ifndef BDHDD_BENCHMARK
 #include <stdio.h>
 #include <time.h>
 #include <errno.h>
@@ -25,13 +26,13 @@ int paka_nanosleep(struct timespec *req)
       {
         req->tv_sec = rem.tv_sec;
 	req->tv_nsec = rem.tv_nsec;
-#if DEBUG_GENERIC > 15	
+#if DEBUG_GENERIC > 25	
 	printf("INFO: nanosleep interrupted, but as been recovered\n");
 #endif	
       }
       else
       {
-#if DEBUG_GENERIC > 15	
+#if DEBUG_GENERIC > 25	
         fprintf(stderr,"ERR: nanosleep failed\n");
 #endif	
 	return -ERROR_FAILED;
@@ -176,7 +177,7 @@ int bdhdd_checkstatus(bdkT *bd,uint8 cmd,int *iStatus,int *iError,int waitCnt)
 
   ret=bdhdd_altstat_waitifbitset(bd,BDHDD_STATUS_BSYBIT,iStatus,waitCnt);
   *iStatus = BDHDD_READ8(BDHDD_CMDBR_STATUS);
-#if DEBUG_PRINT_BDHDD > 15
+#if DEBUG_PRINT_BDHDD > 25
   printf("INFO:[status=0x%x]\n",*iStatus);
 #endif
   if(ret!=0)
@@ -210,7 +211,7 @@ int bdhdd_sendcmd(bdkT *bd, uint8 cmd, int *iStatus, int *iError, int waitCnt)
 
 void bdhdd_printsignature(bdkT *bd)
 {
-#if DEBUG_PRINT_BDHDD > 15
+#if DEBUG_PRINT_BDHDD > 25
   printf("INFO:BDHDD:Signature: SECCNT[0x%x] LBALow[0x%x] LBAMid[0x%x] LBAHigh[0x%x] DevLBA[0x%x]\n",
     BDHDD_READ8(BDHDD_CMDBR_SECCNT), BDHDD_READ8(BDHDD_CMDBR_LBA0),
     BDHDD_READ8(BDHDD_CMDBR_LBA8), BDHDD_READ8(BDHDD_CMDBR_LBA16),
@@ -329,6 +330,9 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
     buffer_read_string_noup((char*)&buf16[23],8,(char*)&buf16[160],32));
   printf("INFO:BDHDD:ID: Model number [%s]\n",
     buffer_read_string_noup((char*)&buf16[27],40,(char*)&buf16[160],64));
+  printf("INFO:BDHDD:ID:51:OldPIOMode Supported [%d:0x%x]\n",(buf16[51]&0xff00)>>8,buf16[51]);
+  printf("INFO:BDHDD:ID:53:FieldValidity AdvancedPIO [%d:0x%x]\n",buf16[53]&0x2,buf16[53]);
+  printf("INFO:BDHDD:ID:--:APIO 64[%d] 65[%d] 66[%d] 67[%d] 68[%d]\n",buf16[64],buf16[65],buf16[66],buf16[67],buf16[68]);
 #endif
   if(buf16[49]&0x200)
     printf("INFO:BDHDD:ID: LBA Supported, totalUserAddressableSecs[??]\n");
@@ -341,20 +345,44 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
     }
     printf("INFO:BDHDD:ID: LBA NOT Supported\n");
   }
-
+  if((bd->multiCnt=buf16[47]&0xff) > 0)
+  {
+    printf("INFO:BDHDD:ID:47: READ/WRITE MULTIPLE[0x%x]\n",buf16[47]);
+    if((ret=bdhdd_readyforcmd(bd,devId,BDHDD_CFG_LBA,0)) != 0) return ret;
+    BDHDD_WRITE8(BDHDD_CMDBR_SECCNT,bd->multiCnt);
+    if(bdhdd_sendcmd(bd,BDHDD_CMD_SETMULTIPLEMODE,&iStat,&iError, 
+        BDHDD_WAIT_CMDTIME) != 0)
+    {
+      fprintf(stderr,"ERR:BDHDD: During SETMULTIPLEMODE cmd\n");
+      return -ERROR_FAILED;
+    }
+    fprintf(stderr,"INFO:BDHDD: SETMULTIPLEMODE set\n");
+  }
+  else
+  {
+    if(BDHDD_CFG_RWMULTIPLE == 1)
+    {
+      fprintf(stderr,"ERR:BDHDD: READ/WRITE MULTIPLE not supported\n");
+      return -ERROR_NOTSUPPORTED;
+    }
+    printf("INFO:BDHDD:ID:47: READ/WRITE MULTIPLE not Supported\n");
+  }
+  /* NOTE: Add SETFEATURE cmd if required later */
   bd->grpId = grpId; bd->devId = devId;
   bd->secSize = BDK_SECSIZE_512;
   bd->totSecs = 0xFFFFFFFF; /* FIXME */
   return 0;
 }
 
+#endif /* BDHDD_BENCHMARK */
+
 int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
 {
-  int iBuf, iWord, iStat, iError, ret;
-  int iLoops,iCurSecs,iLoop,iSec;
+  int iBuf, iStat, iError, ret;
+  int iLoops,iCurSecs,iLoop,iSec,iMulti;
   uint16 *buf16 = (uint16*)buf;
 
-#if (DEBUG_PRINT_BDHDD > 10)
+#if (DEBUG_PRINT_BDHDD > 15)
   printf("INFO:BDHDD: sec[%ld] count[%ld]\n", sec, count);
 #endif
 
@@ -368,7 +396,7 @@ int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
       iCurSecs = count;
     else
       iCurSecs = 0;
-#if DEBUG_PRINT_BDHDD > 15
+#if DEBUG_PRINT_BDHDD > 25
     printf("INFO:BDHDD:get: curStartSec[%ld] remainingCount[%ld]\n",sec,count);
 #endif
     if((ret=bdhdd_readyforcmd(bd,bd->devId,BDHDD_CFG_LBA,
@@ -377,15 +405,24 @@ int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
     BDHDD_WRITE8(BDHDD_CMDBR_LBA0,(sec&0xff));
     BDHDD_WRITE8(BDHDD_CMDBR_LBA8,((sec&0xff00)>>8));
     BDHDD_WRITE8(BDHDD_CMDBR_LBA16,((sec&0xff0000)>>16));
+#ifdef BDHDD_CFG_RWMULTIPLE    
+    if(bdhdd_sendcmd(bd,BDHDD_CMD_READMULTIPLE,&iStat,&iError,
+        BDHDD_WAIT_CMDTIME) != 0)
+#else			    
     if(bdhdd_sendcmd(bd,BDHDD_CMD_READSECTORS,&iStat,&iError,
         BDHDD_WAIT_CMDTIME) != 0)
+#endif		    
     {
       bdhdd_printsignature(bd);
       fprintf(stderr,"ERR:BDHDD: During READSECTORS cmd\n");
       return -ERROR_FAILED;
     }
     if(iCurSecs == 0) iCurSecs = 256;
+#ifdef BDHDD_CFG_RWMULTIPLE
+    for(iSec=0;iSec<iCurSecs;iSec+=bd->multiCnt)
+#else
     for(iSec=0;iSec<iCurSecs;iSec++)
+#endif	    
     {
       if(iSec > 0)
       {
@@ -401,10 +438,18 @@ int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
         fprintf(stderr,"ERR:BDHDD: READSECTORS DRQ not set, iStat[0x%x] iLoop[%d] iSec[%d]\n",iStat,iLoop,iSec);
         return -ERROR_FAILED;
       }
+#ifdef BDHDD_CFG_RWMULTIPLE      
+      iMulti = iCurSecs - iSec;
+      if(iMulti > bd->multiCnt) iMulti = bd->multiCnt;
+      BDHDD_READ16S(BDHDD_CMDBR_DATA,&buf16[iBuf],256*iMulti);
+      iBuf+=256*iMulti;
+#else
       for(iWord=0;iWord<256;iWord++)
-      {
         buf16[iBuf++]=BDHDD_READ16(BDHDD_CMDBR_DATA);
-      }
+#endif      
+#ifdef BDHDD_BENCHMARK
+      iBuf = 0;
+#endif      
     }
     count-=iCurSecs;
     sec+=iCurSecs;
@@ -416,6 +461,10 @@ int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
   return 0;
 }
 
+#ifndef BDHDD_BENCHMARK
+
+#include "bdhdd_benchmark.c"
+
 int bdhdd_cleanup(bdkT *bd)
 {
   return 0;
@@ -423,11 +472,22 @@ int bdhdd_cleanup(bdkT *bd)
 
 int bdhdd_setup()
 {
+#ifdef BDHDD_CFG_RWMULTIPLE
+  fprintf(stderr,"INFO:BDHDD: CFG_RWMULTIPLE active\n");
+#endif
+#ifdef BDHDD_CHECK_DRQAFTERCMDCOMPLETION
+  fprintf(stderr,"INFO:BDHDD: CHECK_DRQAFTERCMDCOMPLETION active\n");
+#endif
+  if(BDHDD_CFG_LBA)
+    fprintf(stderr,"INFO:BDHDD: LBA active\n");
   bdkHdd.init = bdhdd_init;
   bdkHdd.cleanup = bdhdd_cleanup;
   bdkHdd.reset = bdhdd_reset;
   bdkHdd.get_sectors = bdhdd_get_sectors;
+  bdkHdd.get_sectors_benchmark = bdhdd_get_sectors_benchmark;
   pa_strncpy(bdkHdd.name,"bdhdd",BDK_DEVNAMELEN);
   return 0;
 }
+
+#endif /* BDHDD_BENCHMARK */
 

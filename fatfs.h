@@ -1,6 +1,6 @@
 /*
  * fatfs.h - library for working with fat filesystem
- * v12Oct2004_1810
+ * v14Oct2004_1343
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -8,10 +8,11 @@
 #ifndef _FATFS_H_
 #define _FATFS_H_
 
-#define FATFS_LIBVER "v12Oct2004_1811"
+#define FATFS_LIBVER "v14Oct2004_1818"
 
 #include <rwporta.h>
 #include <bdk.h>
+#include <utilsporta.h>
 
 #ifndef DEBUG_PRINT_FATFS
 #define DEBUG_PRINT_FATFS 11
@@ -33,6 +34,9 @@
 #define FATFAT_MAXSIZE (8192*1024)
 #endif
 #define FATROOTDIR_MAXSIZE (512*1024)
+
+#define FATFS_BS_STARTBYTE_T0 0xeb
+#define FATFS_BS_STARTBYTE_T1 0xe9
 
 #define FATDIRENTRY_SIZE 32
 #define FATDIRENTRYNAME_SIZE 11
@@ -88,8 +92,8 @@ struct TFatBootSector
 
 struct TFileInfo 
 {
-  uint8 name[FATFSNAME_SIZE], lfn[FATFSLFN_SIZE], 
-    attr, ntRes, crtTimeTenth;
+  uint8 name[FATFSNAME_SIZE], attr, ntRes, crtTimeTenth;
+  char16 lfn[FATFSLFN_SIZE];
   uint16 crtTime, crtDate, lastAccDate, wrtTime, wrtDate;
   uint32 firstClus, fileSize;
 };
@@ -147,7 +151,7 @@ int fatfs32_checkfatbeginok(struct TFat *fat);
 int fatfs16_loadrootdir(struct TFat *fat);
 int fatfs32_loadrootdir(struct TFat *fat);
 int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
-      struct TFileInfo *fInfo, uint32 *prevPos);
+      struct TFileInfo *fInfo, uint32 *prevPos, int useLFN);
 int fatfs16_getfatentry(struct TFat *fat, uint32 iEntry,
       uint32 *iValue, uint32 *iActual);
 int fatfs32_getfatentry(struct TFat *fat, uint32 iEntry, 
@@ -166,8 +170,8 @@ int fatfs_cleanup(struct TFat *fat);
 
 /* From fsutils */
 /* partNo starts from 0 */
-int fsutils_mount(bdkT *bd, int bdGrpId, int bdDevId,
-      struct TFat *fat, struct TFatBuffers *fatBuffers, int partNo);
+int fsutils_mount(bdkT *bd, int bdGrpId, int bdDevId, int partNo,
+      struct TFat *fat, struct TFatBuffers *fatBuffers, int forceMbr);
 int fsutils_umount(bdkT *bd, struct TFat *fat);
 
 /* Notes

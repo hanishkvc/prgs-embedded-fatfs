@@ -1,15 +1,11 @@
 /*
  * utilsporta.c - portability utility functions
- * v30Sep2004-1935
+ * v14Oct2004-1837
  * C Hanish Menon <hanishkvc>, 28Aug2004
  */
 
 #include <utilsporta.h>
 #include <errorporta.h>
-
-#define uint8 unsigned char
-#define int32 long int
-#define uint32 unsigned long int
 
 #include <stdio.h>
 #define na_fprintf fprintf
@@ -186,6 +182,25 @@ int pa_strncmp(char *dest, char *src, uint32 len)
   return 0;
 }
 
+int pa_strncmp_c16(char16 *dest, char16 *src, uint32 len)
+{
+  int iCur;
+
+  for(iCur = 0; iCur < len; iCur++)
+  {
+    if((*dest == (char16)NULL) || (*src == (char16)NULL))
+    {
+       if((*dest == (char16)NULL) && (*src == (char16)NULL))
+         return 0;
+       else
+         return -1;
+    }
+    if(*src != *dest)
+      return -1;
+    dest++; src++;
+  }
+  return 0;
+}
 
 unsigned long int pa_strtoul(const char *nptr, char **endptr, int base)
 {
@@ -323,13 +338,27 @@ int pa_bufferTOhexstr(char *dest, int destLen, char *src, int srcLen)
   return 0;
 }
 
+int pa_strc16Tostr_nolen(char *dest, char16 *src)
+{
+  int dCur,sCur;
+  
+  sCur = 0; dCur = 0;
+  while(1)
+  {
+    dest[dCur++] = (char)(src[sCur]&0xff);
+    if(src[sCur++] == (char16)NULL)
+      break;
+  }
+  return 0;
+}
 
 int pa_vsnprintf(char *dest,int destLen,char *format,void *args[])
 {
-  int iCur, iArg, iTemp;
+  int iCur, iArg, iTemp, iLengthMod;
   int retVal;
 
   iCur = 0; iArg = 0; retVal = 0;
+  iLengthMod = 0;
   while(1)
   {
     if(iCur == destLen)
@@ -342,13 +371,17 @@ int pa_vsnprintf(char *dest,int destLen,char *format,void *args[])
       dest[iCur] = *format;
       return 0;
     }
-    if(*format != '%')
+    if(iLengthMod == 0)
     {
-      dest[iCur] = *format;
-      iCur++; format++;
-      continue;
+      if(*format != '%')
+      {
+        dest[iCur] = *format;
+        iCur++; format++;
+        continue;
+      }
+      else
+        format++;
     }
-    format++;
 #ifdef UTILSPORTA_OVERSAFE_MODE
     /* Don't enable cas if you have a integer value which is zero 
        corresponding to %x or %d or %u then it will fail */
@@ -358,19 +391,52 @@ int pa_vsnprintf(char *dest,int destLen,char *format,void *args[])
       break;
     }
 #endif
+    if((*format == 'h') && (iLengthMod == 0))
+    {
+      format++;
+      iLengthMod = 2;
+      if(*format == 'h')
+      {
+        iLengthMod = 1;
+	format++;
+      }
+      continue;
+    }
+    if((*format == 'l') && (iLengthMod == 0))
+    {
+      format++;
+      iLengthMod = 4;
+      continue;
+    }
     if(*format == 'x')
     {
-      if((destLen-iCur) < 10)
+      if((iLengthMod == 0) || (iLengthMod == 4) || (iLengthMod == 2))
       {
-        retVal = -ERR_INSUFFICIENTDEST;
-        break;
+        if((destLen-iCur) < 10)
+        {
+          retVal = -ERR_INSUFFICIENTDEST;
+          break;
+        }
+        pa_uint32TOhexstr(&dest[iCur], (uint32)args[iArg]);
+        iCur+=8;
       }
-      pa_uint32TOhexstr(&dest[iCur], (uint32)args[iArg]);
-      iCur+=8; format++; iArg++;
+      else if(iLengthMod == 1)
+      {
+        if((destLen-iCur) < 4)
+        {
+          retVal = -ERR_INSUFFICIENTDEST;
+          break;
+        }
+        pa_uint8TOhexstr(&dest[iCur], (int)args[iArg]);
+        iCur+=2;
+      }
+      format++; iArg++;
+      iLengthMod = 0;
       continue;
     }
     if(*format == 'u')
     {
+      iLengthMod = 0;
       if(pa_uint32TOstr(&dest[iCur],(destLen-iCur),(uint32)args[iArg],&iTemp)!=0)
       {
         retVal = -ERR_INSUFFICIENTDEST;
@@ -381,6 +447,7 @@ int pa_vsnprintf(char *dest,int destLen,char *format,void *args[])
     }
     if(*format == 'd')
     {
+      iLengthMod = 0;
       if(pa_int32TOstr(&dest[iCur],(destLen-iCur),(int32)args[iArg],&iTemp)!=0)
       {
         retVal = -ERR_INSUFFICIENTDEST;
@@ -401,12 +468,15 @@ int pa_vsnprintf(char *dest,int destLen,char *format,void *args[])
     }
     if(*format == 's')
     {
+      if(iLengthMod == 2)
+        pa_strc16Tostr_nolen((char*)args[iArg],(char16*)args[iArg]);
       if(pa_strncpyEx(&dest[iCur],(char*)args[iArg],(destLen-iCur),&iTemp) != 0)
       {
         retVal = -ERR_INSUFFICIENTDEST;
         break;
       }
       iCur+= iTemp; format++; iArg++;
+      iLengthMod = 0;
       continue;
     }
     pa_printstrErr("pa_vsnprintf:ERR: unsupported format>>");

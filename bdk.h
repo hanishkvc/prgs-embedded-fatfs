@@ -1,6 +1,6 @@
 /*
  * bdk.h - generic blockdev logic
- * v12Oct2004_1237
+ * v15Oct2004_0937
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -20,12 +20,14 @@ typedef struct blockDevKT
   int (*cleanup)(struct blockDevKT*);
   int (*reset)(struct blockDevKT*);
   char name[BDK_DEVNAMELEN];
-  long secSize;
+  long secSize, multiCnt;
   unsigned long totSecs;
   /* for bdhdd */
   int CMDBR, CNTBR;
   /* general */
   void *u1, *u2, *u3, *u4;
+  /* benchmark */
+  int (*get_sectors_benchmark)(struct blockDevKT*, long, long, char*); 
 } bdkT;
 
 bdkT *blockDevKs[BDK_NUMDEVICES];

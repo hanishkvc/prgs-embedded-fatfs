@@ -1,11 +1,17 @@
 /*
  * utilsporta.h - portability utility functions
- * v30Sep2004-1829
+ * v14Oct2004-1344
  * C Hanish Menon <hanishkvc>, 28Aug2004
  */
 
 #ifndef _UTILS_PORTA_H_
 #define _UTILS_PORTA_H_
+
+#define char16 unsigned short int
+#define uint8 unsigned char
+#define int32 long int
+#define uint32 unsigned long int
+
 
 int pa_printstr(char *str);
 int pa_printstrErr(char *str);
@@ -21,6 +27,7 @@ int pa_strnlen(const char *src, int maxlen);
 int pa_strncpyEx(char *dest, char *src, unsigned long int len, int *iConsumed);
 int pa_strncpy(char *dest, char *src, unsigned long int len);
 int pa_strncmp(char *dest, char *src, unsigned long int len);
+int pa_strncmp_c16(char16 *dest, char16 *src, uint32 len);
 
 unsigned long int pa_strtoul(const char *nptr, char **endptr, int base);
 long int pa_strtol(const char *nptr, char **endptr, int base);

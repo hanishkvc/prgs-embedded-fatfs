@@ -7,6 +7,44 @@ ToDo
 * Setting DevLBA register in 2 phase (ATA-2 specs say so)
   * 1st phase set only the DEV bit
   * 2nd phase also update the LBAAddr bits
+* have to update fatfs->getfileinfo so that it doesn't convert the 16bit
+  unicode to 8bit ascii.
+
+15Oct2004
+* Added support for READMULTIPLE logic in bdhdd.x and bdk.h
+* More IDENTIFY DEVICE values displayed
+* Added Realtime scheduling support for testfat.
+  This has improved speed by 40-50%. 
+  Previously getting around 2.xMBytesPerSec for bdhdd
+  Now getting around 3 MBytesPerSec for bdhdd
+* Added a new get_sectors_benchmark function for BlockDevs
+  bdfile makes it NULL, where as bdhdd.x provides a modified get_sectors
+  to get_sectors_benchmark where the dest buffer pointer is reset to
+  begining of buffer after each sector is read. Thus one requires 
+  a buffer of only 512 bytes irrespective of the number of sectors
+  read during benchmarking
+
+14Oct2004
+* Added a option to partk_get to force interpretting a sector as MBR
+  irrespective of it finds valid signatures or not.
+  Useful if there are bootloaders like grub,etc in the MBR.
+* fatfs bootsectorload logic updated to check for fatfs's usual
+  bootsector signature in the first byte.
+* testfat now allows user to 
+  * force a BlockDev reset at the begining
+  * force MBR interpretation by partk_get logic
+* bdhdd as unrolled loop for get_sectors
+* Updated utilsporta to support char16 strings required for FatFS LFN
+* Updated fatfs.getfileinfo to work with both char and char16 string
+  by passing useLFN flag as required. 
+  fatuc uses 8.3 filename for its operations for now.
+  Testfat prg also updated. Use 8.3 filenames as it cann't accept
+  filenames with space in them for now.
+  This required as many windows VFAT volumes don't have LFN entries
+  for filenames which fit within 8.3
+* testfat added a readspeed test function which reads from fatfs file
+  into memory
+
 
 12Oct2004
 * Added logic to simulate error in loadfat for PARTLYMAPPEDFAT logic

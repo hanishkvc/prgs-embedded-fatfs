@@ -1,5 +1,5 @@
 CC=$(CROSS)gcc
-CFLAGS = -Wall -O -g -I .
+CFLAGS = -Wall -O2 -I .
 C_FLAGS=
 arm-elf-C_FLAGS= -Wl,-elf2flt
 CFLAGS += $($(CROSS)C_FLAGS)
@@ -13,16 +13,19 @@ FATFSCFILES=fatfs.c fsutils.c partk.c bdfile.c bdhdd.c
 FATFSHFILES=fatfs.h partk.h bdfile.h inall.h bdhdd.h
 
 TESTFATS=$(CROSS)testfat $(CROSS)testfat-d $(CROSS)testfat_pm $(CROSS)testfat_pm-d
-TESTFATS=$(CROSS)testfat_pm $(CROSS)testfat_pm-d
+TESTFATS=$(CROSS)testfat $(CROSS)testfat_pm $(CROSS)testfat_pm-d
 TESTFATCMDLINE=testfat.c $(FATFSCFILES) $(PORTACFILES)
 
 all: $(CROSS)testfat
 
 $(CROSS)testfat: testfat.c $(FATFSCFILES) $(FATFSHFILES) $(PORTAHFILES) $(PORTACFILES)
-#	$(CC) $(CFLAGS) -o $(CROSS)testfat $(TESTFATCMDLINE)
+	$(CC) $(CFLAGS) -o $(CROSS)testfat $(TESTFATCMDLINE)
 #	$(CC) $(CFLAGS) -o $(CROSS)testfat-d $(TESTFATCMDLINE) -D MAKE_DEBUG
 	$(CC) $(CFLAGS) -o $(CROSS)testfat_pm $(TESTFATCMDLINE) -D FATFS_FAT_PARTLYMAPPED
 	$(CC) $(CFLAGS) -o $(CROSS)testfat_pm-d $(TESTFATCMDLINE) -D FATFS_FAT_PARTLYMAPPED -D MAKE_DEBUG
+
+benchmark: bdhdd.c bdhdd.h
+	cpp -DBDHDD_BENCHMARK -DBDHDD_OPTIGETSECTOR_LOOP16 bdhdd.c > bdhdd_benchmark.c
 
 porta:
 	./hkvc-porta_setup.sh $(PORTACFILES) $(PORTAHFILES)

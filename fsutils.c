@@ -1,21 +1,21 @@
 /*
  * fsutils.c - library for fs utility functions
- * v10Oct2004_2318
+ * v14Oct2004_0935
  * C Hanish Menon <hanishkvc>, 14july2004
  */
 #include <partk.h>
 #include <fatfs.h>
 
-int fsutils_mount(bdkT *bd, int bdGrpId, int bdDevId, 
+int fsutils_mount(bdkT *bd, int bdGrpId, int bdDevId, int partNo,
       struct TFat *fat, struct TFatBuffers *fatBuffers,
-      int partNo)
+      int forceMbr)
 {
   pikT pInfo;
   int iRet,baseSec,totSecs;
   
   if((iRet=bd->init(bd,(char*)fatBuffers->FBBuf,bdGrpId,bdDevId)) != 0)
     return iRet;
-  if((iRet=partk_get(&pInfo,bd,(char*)fatBuffers->FBBuf)) != 0)
+  if((iRet=partk_get(&pInfo,bd,(char*)fatBuffers->FBBuf,forceMbr)) != 0)
   {
     if(iRet != -ERROR_PARTK_NOMBR) return iRet;
     printf("INFO:mount: no MBR\n");

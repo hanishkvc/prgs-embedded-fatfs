@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v12Oct2004-1811
+ * v14Oct2004-1818
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -13,7 +13,6 @@
 #include <inall.h>
 #include <fatfs.h>
 #include <errs.h>
-
 
 int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
       bdkT *bd, int baseSec, int totSecs)
@@ -133,6 +132,13 @@ int fatfs_loadbootsector(struct TFat *fat)
   {
     fprintf(stderr,"ERR:fatfs:bootsector: 0xaa55 missing from offset 510\n");
     return -ERROR_INVALID;
+  }
+  pCur = fat->BBuf;
+  tVerify=buffer_read_uint8_le(&pCur);
+  if((tVerify!=FATFS_BS_STARTBYTE_T0) && (tVerify!=FATFS_BS_STARTBYTE_T1))
+  {
+    fprintf(stderr,"ERR:fatfs:bootsector: BootSec byte not found at byte0\n");
+    return -ERROR_PARTK_NOMBR;
   }
   /* extract the FAT boot sector info */
   pCur = fat->BBuf;
@@ -314,17 +320,9 @@ int fatfs32_loadrootdir(struct TFat *fat)
   return res;
 }
 
-int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
-  struct TFileInfo *fInfo, uint32 *prevPos)
+int fatfs_FN83_expandifspecial_b(char *cFile, char *tcFile)
 {
-  int iCur, iCurLFN, flagSpecialCurOrPrev;
-  uint8 *pCur = dirBuf;
-  int lfnPos = FATFSLFN_SIZE-1;
-  char tcFile[FATDIRENTRYNAME_SIZE+1];
-
-  /* logic added as . and .. directory entries don't have corresponding
-   * lfn entry in the directory
-   */
+  int flagSpecialCurOrPrev;
   flagSpecialCurOrPrev = 0;
   if(cFile[0] == '.')
   {
@@ -341,6 +339,95 @@ int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize,
     else
       flagSpecialCurOrPrev = 0;
   }
+  return flagSpecialCurOrPrev;
+}
+
+int fatfs_LFN_expandifspecial_b(char16 *cFile, char *tcFile)
+{
+  int flagSpecialCurOrPrev;
+  flagSpecialCurOrPrev = 0;
+  if(cFile[0] == '.')
+  {
+    flagSpecialCurOrPrev = 1;
+    if(cFile[1] == '.')
+    {
+      if(cFile[2] == (char16)NULL)
+        strcpy(tcFile,"..         ");
+      else
+        flagSpecialCurOrPrev = 0;
+    }
+    else if(cFile[1] == (char16)NULL)
+      strcpy(tcFile,".          ");
+    else
+      flagSpecialCurOrPrev = 0;
+  }
+  return flagSpecialCurOrPrev;
+}
+
+int FN83_expand(char *cFile, char *tcFile)
+{
+  int dCur,sCur,stringOver;
+  
+  stringOver=0;
+  for(sCur=0;sCur<8;sCur++)
+  {
+    tcFile[sCur] = cFile[sCur];
+    if(cFile[sCur] == '.')
+      break;
+    else if(cFile[sCur] == (char)NULL)
+    {
+      stringOver=1;
+      break;
+    }
+  }
+  for(dCur=sCur;dCur<8;dCur++)
+    tcFile[dCur] = ' ';
+
+  if(stringOver == 0)
+  {
+    if((cFile[sCur] != '.') && (cFile[sCur] != (char)NULL))
+      return -ERROR_INVALID;
+    sCur++;
+    for(;dCur<11;dCur++,sCur++)
+    {
+      tcFile[dCur] = cFile[sCur];
+      if(cFile[sCur] == (char)NULL)
+        break;
+    }
+  }
+  for(;dCur<11;dCur++)
+    tcFile[dCur] = ' ';
+  tcFile[dCur] = (char)NULL;
+  return 0;
+}
+
+int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
+  struct TFileInfo *fInfo, uint32 *prevPos, int useLFN)
+{
+  int iCur, iCurLFN, flagSpecialCurOrPrev;
+  uint8 *pCur = dirBuf;
+  int lfnPos = FATFSLFN_SIZE-1;
+  char tcFile[FATDIRENTRYNAME_SIZE+1],*fName;
+
+  /* logic added as . and .. directory entries don't have corresponding
+   * lfn entry in the directory
+   */
+  if(useLFN)
+    flagSpecialCurOrPrev = fatfs_LFN_expandifspecial_b((char16*)cFile,tcFile);
+  else
+    flagSpecialCurOrPrev = fatfs_FN83_expandifspecial_b(cFile,tcFile);
+  if(flagSpecialCurOrPrev == 0)
+  {
+    if(useLFN == 0)
+    {
+      FN83_expand(cFile,tcFile);
+      fName = tcFile;
+    }
+    else
+      fName = cFile;
+  }
+  else
+    fName = tcFile;
   /****************/
   iCur = *prevPos;
   while(iCur+FATDIRENTRY_SIZE  <= dirBufSize)
@@ -415,16 +502,16 @@ int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize,
     fInfo->fileSize = buffer_read_uint32_le(&pCur);
 #if (DEBUG_PRINT_FATFS > 15)
     printf("INFO:fatfs:File[%s][%s] attr[0x%x] firstClus[%ld]fileSize[%ld]\n",
-      fInfo->name, fInfo->lfn, fInfo->attr, fInfo->firstClus, fInfo->fileSize);
+      fInfo->name, (char*)fInfo->lfn, fInfo->attr, fInfo->firstClus, fInfo->fileSize);
 #endif
-    if(flagSpecialCurOrPrev == 0)
+    if((useLFN == 0) || (flagSpecialCurOrPrev == 1))
     {
-      if(strncmp(fInfo->lfn,cFile,FATFSLFN_SIZE) == 0)
+      if(pa_strncmp(fInfo->name,fName,FATFSNAME_SIZE) == 0)
         return 0;
     }
     else
     {
-      if(strncmp(fInfo->name,tcFile,FATFSNAME_SIZE) == 0)
+      if(pa_strncmp_c16(fInfo->lfn,(char16*)fName,FATFSLFN_SIZE) == 0)
         return 0;
     }
     if(cFile[0] == 0)
@@ -856,7 +943,7 @@ int fatuc_changedir(struct TFatFsUserContext *uc, char *fDirName, int bUpdateCur
     printf("fatfs:chdir:token [%s]\n", token);
 #endif
     prevPos = 0;
-    res = fatfs_getfileinfo_fromdir(token, dBuf, dBufLen, &fInfo, &prevPos);
+    res = fatfs_getfileinfo_fromdir(token, dBuf, dBufLen, &fInfo, &prevPos, 0);
     if(res != 0)
     {
       fprintf(stderr,"ERR:fatfs:chdir:subdir[%s] not found\n", token);
@@ -881,8 +968,8 @@ int fatuc_changedir(struct TFatFsUserContext *uc, char *fDirName, int bUpdateCur
       dBufLen = totSecsRead*uc->fat->bs.bytPerSec;
       if(res !=  0)
       {
-        fprintf(stderr,"ERR:fatfs:chdir:subdir[%s]dataload failed with[%ld]\n",
-          fInfo.lfn, res);
+        fprintf(stderr,"ERR:fatfs:chdir:subdir[%s]dataload failed [%ld]\n",
+          fInfo.name, res);
         return res;
       }
     }
@@ -922,7 +1009,7 @@ int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,
   
   if(uc->pName[0] == 0)
     return fatfs_getfileinfo_fromdir(uc->fName, uc->curDirBuf, 
-      uc->curDirBufLen, fInfo, prevPos);
+      uc->curDirBufLen, fInfo, prevPos, 0);
   else
   {
 #if (DEBUG_PRINT_FATFS > 5)
@@ -935,7 +1022,7 @@ int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,
       return res;
     }
     return fatfs_getfileinfo_fromdir(uc->fName, uc->tempDirBuf, 
-      uc->tempDirBufLen, fInfo, prevPos);
+      uc->tempDirBufLen, fInfo, prevPos, 0);
   }
 }
 
