@@ -1,6 +1,6 @@
 /*
  * errs.h - header providing common error defines
- * v07Oct2004_1958
+ * v10Oct2004_1933
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -13,6 +13,7 @@
 #define ERROR_INSUFFICIENTRESOURCE 102
 #define ERROR_TRYAGAIN 103
 #define ERROR_FAILED 104
+#define ERROR_TIMEOUT 105
 
 #define ERROR_NOMORE 201
 #define ERROR_NOTFOUND 202
@@ -21,6 +22,8 @@
 
 #define ERROR_FATFS_NOTCLEANSHUT 1001
 #define ERROR_FATFS_HARDERR 1002
+
+#define ERROR_PARTK_NOMBR 2001
 
 #define ERROR_FATFS_EOF 0xFFFFFFF8
 #define ERROR_FATFS_BADCLUSTER 0xFFFFFFF7

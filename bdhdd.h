@@ -1,6 +1,6 @@
 /*
  * bdhdd.h - library for working with a ide HDD
- * v10Oct2004_0025
+ * v12Oct2004_1103
  * C Hanish Menon, 2004
  * 
  */
@@ -10,14 +10,16 @@
 
 #include <rwporta.h>
 #include <bdk.h>
-#include <time.h>
 #include <sys/io.h>
 
+#define BDHDD_CFG_LBA 1
+#define BDHDD_CHECK_DRQAFTERCMDCOMPLETION 1  
+
 #ifdef BDHDD_MEMMAPPED
-#define BDHDD_READ8(A) (*(volatile char*)A)
-#define BDHDD_WRITE8(A,V) *(volatile char*)A=V
-#define BDHDD_READ16(A) (*(volatile int*)A)
-#define BDHDD_WRITE16(A,V) *(volatile int*)A=V
+#define BDHDD_READ8(A) (*(volatile char*)(A))
+#define BDHDD_WRITE8(A,V) *(volatile char*)(A)=V
+#define BDHDD_READ16(A) (*(volatile int*)(A))
+#define BDHDD_WRITE16(A,V) *(volatile int*)(A)=V
 #else
 #define BDHDD_READ8(A) inb(A)
 #define BDHDD_WRITE8(A,V) outb(V,A)
@@ -25,21 +27,34 @@
 #define BDHDD_WRITE16(A,V) outw(V,A)
 #endif
 
-#define BDHDD_CMDBR 0x170
-#define BDHDD_CMDBR_DATA (BDHDD_CMDBR+0)
-#define BDHDD_CMDBR_FEATURES (BDHDD_CMDBR+1)
-#define BDHDD_CMDBR_ERROR (BDHDD_CMDBR+1)
-#define BDHDD_CMDBR_SECCNT (BDHDD_CMDBR+2)
-#define BDHDD_CMDBR_LBA0 (BDHDD_CMDBR+3)
-#define BDHDD_CMDBR_LBA8 (BDHDD_CMDBR+4)
-#define BDHDD_CMDBR_LBA16 (BDHDD_CMDBR+5)
-#define BDHDD_CMDBR_DEVLBA24 (BDHDD_CMDBR+6)
-#define BDHDD_CMDBR_COMMAND  (BDHDD_CMDBR+7)
-#define BDHDD_CMDBR_STATUS (BDHDD_CMDBR+7)
+#define BDHDD_WAIT_CMDINIT 3000000
+#define BDHDD_WAITNS_DEVUPDATESSTATUS 1000
+#define BDHDD_WAIT_CMDTIME 6000000
+#define BDHDD_WAIT_AFTERCMDCOMPLETION 10
+#define BDHDD_WAITSEC_SRST_P1 16
+#define BDHDD_WAITSEC_SRST_P2 31
+#define BDHDD_WAIT_SRSTBSY 3000
+#define BDHDD_WAITSEC_SRST_P3 (2*60)
+#define BDHDD_WAIT_SRSTDRDY 3000
 
-#define BDHDD_CNTBR 0x370
-#define BDHDD_CNTBR_DEVCNT (BDHDD_CNTBR+6)
-#define BDHDD_CNTBR_ALTSTAT (BDHDD_CNTBR+6)
+
+#define BDHDD_IDE0_CMDBR 0x1f0
+#define BDHDD_IDE0_CNTBR 0x3f0
+#define BDHDD_IDE1_CMDBR 0x170
+#define BDHDD_IDE1_CNTBR 0x370
+#define BDHDD_CMDBR_DATA (bd->CMDBR+0)
+#define BDHDD_CMDBR_FEATURES (bd->CMDBR+1)
+#define BDHDD_CMDBR_ERROR (bd->CMDBR+1)
+#define BDHDD_CMDBR_SECCNT (bd->CMDBR+2)
+#define BDHDD_CMDBR_LBA0 (bd->CMDBR+3)
+#define BDHDD_CMDBR_LBA8 (bd->CMDBR+4)
+#define BDHDD_CMDBR_LBA16 (bd->CMDBR+5)
+#define BDHDD_CMDBR_DEVLBA24 (bd->CMDBR+6)
+#define BDHDD_CMDBR_COMMAND (bd->CMDBR+7)
+#define BDHDD_CMDBR_STATUS (bd->CMDBR+7)
+
+#define BDHDD_CNTBR_DEVCNT (bd->CNTBR+6)
+#define BDHDD_CNTBR_ALTSTAT (bd->CNTBR+6)
 
 #define BDHDD_STATUS_BSYBIT 0x80
 #define BDHDD_STATUS_DRDYBIT 0x40
@@ -54,7 +69,10 @@
 
 #define BDHDD_CMD_IDENTIFYDEVICE 0xEC
 #define BDHDD_CMD_READSECTORS 0x20
-#define BDHDD_CMD_READSECTORSWITHOUTRETRIES 0x21
+#define BDHDD_CMD_READSECTORSNORETRIES 0x21
+
+#define BDHDD_SRST_DIAGNOSTICS_ALLOK 0x01
+#define BDHDD_SRST_DIAGNOSTICS_D0OK 0x81
 
 bdkT bdkHdd;
 

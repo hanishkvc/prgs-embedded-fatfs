@@ -2,6 +2,55 @@ Changelog - fatfs
 C Hanish Menon <hanishkvc>
 ---------------------------
 
+ToDo
+-----
+* Setting DevLBA register in 2 phase (ATA-2 specs say so)
+  * 1st phase set only the DEV bit
+  * 2nd phase also update the LBAAddr bits
+
+12Oct2004
+* Added logic to simulate error in loadfat for PARTLYMAPPEDFAT logic
+  This inturn will lead to wrong sector number being passed to BlockDev
+* Before a cmd is sent to HDD, its checked that BSY or ERR or DRQ bits
+  aren't set. However if they are set then SRST (softreset) is used
+  to recover the situation if possible.
+* Softreset added for bdks
+  bdhdd.x uses this.
+  bdfile.x makes this a dummy.
+  testfat provides option to call it explicitly if required.
+* bdfile.x 64bit seek added for large filesystems
+
+11Oct2004
+* Support for Mapping FAT into memory in parts as required has been added
+  Now there are two FAT loading logic
+  * Fully Mapped and * Partly Mapped (Usefull for those large FAT32 FATS)
+* bdhdd.x uses altstat register to poll status changes and once found
+  reads the status register to inform h/w about host having noticed
+  the status change.
+  Verification of DRQ during each word transfer (if explicitly forced)
+  has been removed
+* Check for MBR Startbyte signature as been made optional in partk_get
+  cas many mbr's which don't have a load code (or which don't take part
+  in bootstrapping of OS) don't have this signature, as its part of the
+  load code instructions.
+* bdhdd.x cleanup and better error notification
+  Also increase in wait counts
+* partk_get distinguishes between other errors and NO MBR error
+  mount inturn uses this info to decide as to fail or continue
+  
+
+10Oct2004
+* Made bdhdd.x generic such that it can work with either ide0 or ide1
+* bdhdd.x has timeout logic now when waiting for bits to be set or cleared
+  Plus few others make it better prepared to handle errors during device
+  access
+* bdkT maintains 
+  * grpId and devId, which
+    * bdhdd.x uses for ide0/1 and dev0/1
+    * bdfile.x ignores
+    fsutils and testfat updated to handle these ids.
+  * CMDBR and CNTBR for bdhdd.x for now
+
 09Oct2004
 * Found that READSECTORSWITHOUTRETRIES (0x21) not supported
 * Also signature in LBAlow, LBAMid, LBAHigh, DEVLBA24, SECCNT not set

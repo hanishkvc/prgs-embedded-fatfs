@@ -1,11 +1,11 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v10Oct2004_0019
+ * v12Oct2004_1720
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
-#define TESTFAT_PRGVER "v10Oct2004_0025"
+#define TESTFAT_PRGVER "v12Oct2004_1829"
 
 #include <sys/time.h>
 
@@ -180,36 +180,42 @@ int testfat_fileextract(struct TFatFsUserContext *uc, char *sFile, char *dFile)
 
 int main(int argc, char **argv)
 {
-  int bExit;
+  int bExit, grpId, devId, partNo;
   bdkT *bdk;
+  char *pChar;
   
-  printf("[%s]Usage: %s <h_d|f_ile> <y|n = interactive mode>\n", 
+  printf("[%s]Usage: %s <hd|file> <bdGrp,bdDev,partNo> <y|n interactive> <ni-file>\n", 
     TESTFAT_PRGVER, argv[0]);
 
   /*** initialization ***/
   testfat_starttime();
   bdfile_setup();
   bdhdd_setup();
-  if(argc > 1)
-  {
-    if(argv[1][0] == 'h')
-      bdk = &bdkHdd;
-    else
-      bdk = &bdkBDFile;
-    fsutils_mount(bdk, &fat1, &fat1Buffers, 0);
-  }
-  else
+  if(argc < 4)
   {
     printf("Not enough args, quiting\n");
     exit(10);
   }
+  if(argv[1][0] == 'h')
+    bdk = &bdkHdd;
+  else
+    bdk = &bdkBDFile;
+  grpId = strtoul(argv[2],&pChar,0);
+  devId = strtoul(&pChar[1],&pChar,0);
+  partNo = strtoul(&pChar[1],NULL,0);
+
+  if(fsutils_mount(bdk, grpId, devId, &fat1, &fat1Buffers, partNo) != 0)
+  {
+    fprintf(stderr,"ERR: mount failed\n");
+    exit(20);
+  }
   fatuc_init(&gUC, &fat1);
   testfat_stoptimedisp("Init");
 
-  if((argc > 2) && (argv[2][0] == 'n'))
+  if((argc>4) && (argv[3][0] == 'n'))
   {
     testfat_starttime();
-    testfat_checkfile(&gUC, argv[2]);
+    testfat_checkfile(&gUC, argv[4]);
     testfat_stoptimedisp("checkFile");
     goto cleanup;
   }
@@ -218,7 +224,7 @@ int main(int argc, char **argv)
     bExit = 0;
     printf("[%s]========curDir [%s]========\n", TESTFAT_PRGVER,gUC.sCurDir);
     printf("(l) dirListing (e) fileExtract (E) Exit\n");
-    printf("(c) chDir (f) checkFile\n");
+    printf("(c) chDir (f) checkFile (R) Reset\n");
     cCur = fgetc(stdin); fgetc(stdin);
     switch(cCur)
     {
@@ -253,6 +259,10 @@ int main(int argc, char **argv)
       testfat_starttime();
       testfat_checkfile(&gUC, sBuf1);
       testfat_stoptimedisp("checkFile");
+      break;
+    case 'R':
+      printf("Reseting blockdev [%s]\n",bdk->name);
+      bdk->reset(bdk);
       break;
     case 'E':
       bExit = 1;

@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v05Oct2004-2157
+ * v12Oct2004-1811
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -21,6 +21,15 @@ int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
   int res;
 
   fprintf(stderr,"fatfs:[%s]\n",FATFS_LIBVER);
+#ifdef FATFS_FAT_FULLYMAPPED
+  fprintf(stderr,"fatfs: FULLYMAPPED\n");
+#endif
+#ifdef FATFS_FAT_PARTLYMAPPED
+  fprintf(stderr,"fatfs: PARTLYMAPPED\n");
+#endif
+#ifdef FATFS_SIMULATE_ERROR
+  fprintf(stderr,"fatfs: SimulateError enabled, some operations can fail\n");
+#endif
   fat->bd = bd;
   fat->baseSec = baseSec; fat->totSecs = totSecs;
   fat->BBuf = (uint8*)&(fBufs->FBBuf);
@@ -42,6 +51,7 @@ int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
     fat->getfatentry = fatfs16_getfatentry;
     fat->checkfatbeginok = fatfs16_checkfatbeginok;
     fat->curFatNo = 0;
+    fat->maxFatEntry = ((fat->bs.fatSz*fat->bs.bytPerSec)/2)-1;
   }
   else if(fat->bs.isFat32)
   {
@@ -49,6 +59,7 @@ int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
     fat->getfatentry = fatfs32_getfatentry;
     fat->checkfatbeginok = fatfs32_checkfatbeginok;
     fat->curFatNo = FAT32_EXTFLAGS_ACTIVEFAT(fat->bs.extFlags);
+    fat->maxFatEntry = ((fat->bs.fatSz*fat->bs.bytPerSec)/4)-1;
   }
   else
   {
@@ -56,7 +67,7 @@ int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
     return -ERROR_NOTSUPPORTED;
   }
   
-  res = fatfs_loadfat(fat,fat->curFatNo);
+  res = fatfs_loadfat(fat,fat->curFatNo,0);
   if(res != 0) return res;
   if((res=fat->checkfatbeginok(fat)) != 0) return res;
   res = fat->loadrootdir(fat);
@@ -211,12 +222,14 @@ int fatfs_loadbootsector(struct TFat *fat)
 #endif
   }
   /* verify limitations of this FatFS implementation */
+#ifdef FATFS_FAT_FULLYMAPPED
   if(fat->bs.fatSz*fat->bs.bytPerSec > FATFAT_MAXSIZE)
   {
     fprintf(stderr,"ERR:fatfs: Fat size [%ld] > FATFAT_MAXSIZE [%d]\n", 
       fat->bs.fatSz*fat->bs.bytPerSec, FATFAT_MAXSIZE);
     return -ERROR_INSUFFICIENTRESOURCE;
   }
+#endif  
   if(fat->bs.isFat12)
   {
     fprintf(stderr,"ERR:fatfs: Fat12 is not supported\n");
@@ -225,12 +238,43 @@ int fatfs_loadbootsector(struct TFat *fat)
   return 0;
 }
 
-int fatfs_loadfat(struct TFat *fat, int fatNo)
+int fatfs_loadfat(struct TFat *fat, int fatNo, int startEntry)
 {
-  int fatStartSec;
+  int fatStartSec, nEntries, nSecs, startSec;
+
+#ifndef FATFS_SIMULATE_ERROR  
+  if(startEntry < 0) startEntry = 0; 
+#endif  
+  nSecs = (FATFAT_MAXSIZE/fat->bs.bytPerSec);
+  nEntries = nSecs*fat->bs.bytPerSec;
+  if(fat->bs.isFat16)
+  {
+    startSec = (startEntry*2)/fat->bs.bytPerSec;
+    startEntry = (startSec*fat->bs.bytPerSec)/2;
+    nEntries = nEntries/2;
+  }
+  else if(fat->bs.isFat32) 
+  {
+    startSec = (startEntry*4)/fat->bs.bytPerSec;
+    startEntry = (startSec*fat->bs.bytPerSec)/4;
+    nEntries = nEntries/4;
+  }
+  else 
+  {
+    fprintf(stderr,"DEBUG:FATFS:loadfat: NOTPOSSIBLE unsupported Fat type\n");
+    return -ERROR_NOTSUPPORTED;
+  }
+  
+  fat->curFatStartEntry = startEntry;
+  fat->curFatEndEntry = startEntry+nEntries-1;
+  if(fat->curFatEndEntry > fat->maxFatEntry)
+    fat->curFatEndEntry = fat->maxFatEntry;
 
   fatStartSec = fat->baseSec+fat->bs.rsvdSecCnt+fatNo*fat->bs.fatSz;
-  return fat->bd->get_sectors(fat->bd, fatStartSec, fat->bs.fatSz,fat->FBuf); 
+  startSec = fatStartSec + startSec;
+  printf("INFO:fatfs:loadfat: curFat->StartEntry[%ld]EndEntry[%ld]\n",
+    fat->curFatStartEntry, fat->curFatEndEntry);
+  return fat->bd->get_sectors(fat->bd, startSec, nSecs,fat->FBuf); 
 }
  
 int fatfs16_loadrootdir(struct TFat *fat)
@@ -389,12 +433,45 @@ int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize,
   return -ERROR_NOTFOUND;
 }
 
+int fatfs_partlymappedfat_handle(struct TFat *fat, 
+      uint32 iEntry, uint32 *pMappedEntry)
+{
+  if((iEntry < fat->curFatStartEntry) || (iEntry > fat->curFatEndEntry))
+  {
+    if(fatfs_loadfat(fat,fat->curFatNo,
+      iEntry-((fat->curFatEndEntry-fat->curFatStartEntry)/2)) != 0)
+    {
+      fprintf(stderr,"ERR:fatfs: failed partlymappedfat loading\n");
+      return -ERROR_FAILED;
+    }
+    printf("INFO:fatfs: fat partly mapped in\n");
+  }
+  *pMappedEntry = iEntry-fat->curFatStartEntry;
+  return 0;
+}
+
 int fatfs16_getfatentry(struct TFat *fat, uint32 iEntry,
       uint32 *iValue, uint32 *iActual)
 {
   uint32 iCurClus;
-  
+
+  if(iEntry > fat->maxFatEntry)
+  {
+    fprintf(stderr,"ERR:fatfs16: fatentry[%ld] > maxFatEntry[%ld]\n",
+      iEntry,fat->maxFatEntry);
+    return -ERROR_INVALID;
+  }
+#ifdef FATFS_FAT_FULLYMAPPED 
   *iActual = ((uint16*)fat->FBuf)[iEntry];
+#endif
+#ifdef FATFS_FAT_PARTLYMAPPED
+  {
+  uint32 iMappedEntry;
+  if(fatfs_partlymappedfat_handle(fat,iEntry,&iMappedEntry) != 0) 
+    return -ERROR_FAILED;
+  *iActual = ((uint16*)fat->FBuf)[iMappedEntry];
+  }
+#endif
   iCurClus = *iActual;
   if(iCurClus >= FAT16_EOF) /* EOF reached */
     return -ERROR_FATFS_EOF;
@@ -410,8 +487,25 @@ int fatfs32_getfatentry(struct TFat *fat, uint32 iEntry,
       uint32 *iValue, uint32 *iActual)
 {
   uint32 iCurClus;
-  
+
+  if(iEntry > fat->maxFatEntry)
+  {
+    fprintf(stderr,"ERR:fatfs32: fatentry[%ld] > maxFatEntry[%ld]\n",
+      iEntry,fat->maxFatEntry);
+    return -ERROR_INVALID;
+  }
+#ifdef FATFS_FAT_FULLYMAPPED 
   *iActual = ((uint32*)fat->FBuf)[iEntry];
+#endif
+#ifdef FATFS_FAT_PARTLYMAPPED
+  {
+  uint32 iMappedEntry;
+  if(fatfs_partlymappedfat_handle(fat,iEntry,&iMappedEntry) != 0) 
+    return -ERROR_FAILED;
+  *iActual = ((uint32*)fat->FBuf)[iMappedEntry];
+  }
+#endif
+  
   iCurClus = *iActual & 0x0FFFFFFF;
   if(iCurClus >= FAT32_EOF) /* EOF reached */
     return -ERROR_FATFS_EOF;

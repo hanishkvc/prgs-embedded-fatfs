@@ -1,6 +1,6 @@
 /*
  * partk.c - library for working with partition table
- * v04Oct2004_1856
+ * v11Oct2004_1448
  * C Hanish Menon <hanishkvc>, 16july2004
  * 
  */
@@ -16,18 +16,33 @@ int partk_get(pikT *pi, bdkT *bd, char *pBuf)
   uint16 pOffsets[PARTK_NUMPARTS] 
     = { PARTK1_OFFSET, PARTK2_OFFSET, PARTK3_OFFSET, PARTK4_OFFSET };
 
-  bd->get_sectors(bd,0,1,pBuf); 
+  if(bd->get_sectors(bd,0,1,pBuf) != 0)
+  {
+    fprintf(stderr,"ERR:partk: getting 0th sector\n");
+    return -ERROR_FAILED;
+  }
   pCur = pBuf+PARTKEXECMARK_OFFSET;
   tVerify = buffer_read_uint16_le(&pCur);
   if(tVerify != 0xaa55)
   {
-    printf("partk:get:ERROR: 0xaa55 missing from offset %d\n", PARTKEXECMARK_OFFSET);
-    return -1;
+    fprintf(stderr,"ERR:partk:NoMBR: 0xaa55 missing from offset %d\n",
+      PARTKEXECMARK_OFFSET);
+    return -ERROR_PARTK_NOMBR;
   }
   pCur=pBuf;
   tVerify=buffer_read_uint8_le(&pCur);
-  if((tVerify == PARTK_BS_STARTBYTE_0) || (tVerify == PARTK_BS_STARTBYTE_1))
-    return -2;
+  if((tVerify==PARTK_BS_STARTBYTE_T0) || (tVerify==PARTK_BS_STARTBYTE_T1))
+  {
+    fprintf(stderr,"ERR:partk:NoMBR: BootSec byte found at byte0\n");
+    return -ERROR_PARTK_NOMBR;
+  }
+#ifdef PARTK_VERIFY_MBRSTARTBYTE  
+  if(tVerify != PARTK_MBR_STARTBYTE_T0)
+  {
+    fprintf(stderr,"ERR:partk:NoMBR: MBRs byte not found at byte0\n");
+    return -ERROR_PARTK_NOMBR;
+  }
+#endif
 
   for(iPart = 0; iPart < PARTK_NUMPARTS; iPart++)
   {

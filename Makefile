@@ -12,19 +12,26 @@ INSTALLPATH=/hanishkvc/samples/fatfs
 FATFSCFILES=fatfs.c fsutils.c partk.c bdfile.c bdhdd.c
 FATFSHFILES=fatfs.h partk.h bdfile.h inall.h bdhdd.h
 
+TESTFATS=$(CROSS)testfat $(CROSS)testfat-d $(CROSS)testfat_pm $(CROSS)testfat_pm-d
+TESTFATS=$(CROSS)testfat_pm $(CROSS)testfat_pm-d
+TESTFATCMDLINE=testfat.c $(FATFSCFILES) $(PORTACFILES)
+
 all: $(CROSS)testfat
 
 $(CROSS)testfat: testfat.c $(FATFSCFILES) $(FATFSHFILES) $(PORTAHFILES) $(PORTACFILES)
-	$(CC) $(CFLAGS) -o $(CROSS)testfat testfat.c $(FATFSCFILES) $(PORTACFILES)
+#	$(CC) $(CFLAGS) -o $(CROSS)testfat $(TESTFATCMDLINE)
+#	$(CC) $(CFLAGS) -o $(CROSS)testfat-d $(TESTFATCMDLINE) -D MAKE_DEBUG
+	$(CC) $(CFLAGS) -o $(CROSS)testfat_pm $(TESTFATCMDLINE) -D FATFS_FAT_PARTLYMAPPED
+	$(CC) $(CFLAGS) -o $(CROSS)testfat_pm-d $(TESTFATCMDLINE) -D FATFS_FAT_PARTLYMAPPED -D MAKE_DEBUG
 
 porta:
 	./hkvc-porta_setup.sh $(PORTACFILES) $(PORTAHFILES)
 
 install:
-	mv testfat $(INSTALLPATH)/
+	mv $(TESTFATS) $(INSTALLPATH)/
 
 clean:
-	rm $(CROSS)testfat || /bin/true
+	rm $(TESTFATS) || /bin/true
 	rm $(CROSS)testfat.gdb || /bin/true
 	rm *.o core || /bin/true
 

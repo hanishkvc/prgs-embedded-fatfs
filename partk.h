@@ -1,6 +1,6 @@
 /*
  * partk.h - library for working with partition table
- * v04Oct2004_1850
+ * v11Oct2004_1450
  * C Hanish Menon <hanishkvc>, 16july2004
  * 
  */
@@ -8,12 +8,16 @@
 #ifndef _PARTK_H_
 #define _PARTK_H_
 
+#include <inall.h>
 #include <rwporta.h>
+#include <errs.h>
 #include <bdk.h>
 
 #ifndef DEBUG_PRINT_PARTK
 #define DEBUG_PRINT_PARTK 11
 #endif
+
+#undef PARTK_VERIFY_MBRSTARTBYTE  
 
 #define PARTK_NUMPARTS 4
 #define PARTK1_OFFSET 0x1be
@@ -22,8 +26,9 @@
 #define PARTK4_OFFSET 0x1ee
 #define PARTKEXECMARK_OFFSET 0x1fe
 
-#define PARTK_BS_STARTBYTE_0 0xeb
-#define PARTK_BS_STARTBYTE_1 0xe9
+#define PARTK_MBR_STARTBYTE_T0 0xfc
+#define PARTK_BS_STARTBYTE_T0 0xeb
+#define PARTK_BS_STARTBYTE_T1 0xe9
 
 /* In partition table Cyl and Sector are embedded in a single 16bit number
    like this => (MSB-LSB) 8bitCylLo,2bitCylHi,6bitSec */

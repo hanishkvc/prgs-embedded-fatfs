@@ -1,6 +1,6 @@
 /*
  * fatfs.h - library for working with fat filesystem
- * v05Oct2004_2153
+ * v12Oct2004_1810
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -8,7 +8,7 @@
 #ifndef _FATFS_H_
 #define _FATFS_H_
 
-#define FATFS_LIBVER "v05Oct2004_2157"
+#define FATFS_LIBVER "v12Oct2004_1811"
 
 #include <rwporta.h>
 #include <bdk.h>
@@ -17,9 +17,21 @@
 #define DEBUG_PRINT_FATFS 11
 #endif
 
+#ifndef FATFS_FAT_PARTLYMAPPED 
+#define FATFS_FAT_FULLYMAPPED
+#endif
+
+/* Define to simulate error during FATFS_FAT_PARTLYMAPPED */
+#undef FATFS_SIMULATE_ERROR  
+
 #define FATSEC_MAXSIZE 4096
 #define FATBOOTSEC_MAXSIZE FATSEC_MAXSIZE
-#define FATFAT_MAXSIZE (2048*1024)
+#ifdef FATFS_FAT_PARTLYMAPPED
+#define FATFAT_MAXSIZE (1024*1024)
+#endif
+#ifdef FATFS_FAT_FULLYMAPPED
+#define FATFAT_MAXSIZE (8192*1024)
+#endif
 #define FATROOTDIR_MAXSIZE (512*1024)
 
 #define FATDIRENTRY_SIZE 32
@@ -97,7 +109,7 @@ struct TFat
   uint8 *BBuf, *FBuf, *RDBuf;
   uint32 rdSize;
   struct TFatBootSector bs;
-  int curFatNo;
+  uint32 curFatNo, curFatStartEntry, curFatEndEntry, maxFatEntry;
   /* Functions */
   int (*loadrootdir)(struct TFat *fat);
   int (*getfatentry)(struct TFat *fat, uint32 iEntry,
@@ -129,7 +141,7 @@ struct TFatFsUserContext
 int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs, 
       bdkT *bd, int baseSec, int totSecs);
 int fatfs_loadbootsector(struct TFat *fat);
-int fatfs_loadfat(struct TFat *fat, int fatNo);
+int fatfs_loadfat(struct TFat *fat, int fatNo, int startEntry);
 int fatfs16_checkfatbeginok(struct TFat *fat);
 int fatfs32_checkfatbeginok(struct TFat *fat);
 int fatfs16_loadrootdir(struct TFat *fat);
@@ -154,8 +166,8 @@ int fatfs_cleanup(struct TFat *fat);
 
 /* From fsutils */
 /* partNo starts from 0 */
-int fsutils_mount(bdkT *bd, struct TFat *fat, struct TFatBuffers *fatBuffers,
-      int partNo);
+int fsutils_mount(bdkT *bd, int bdGrpId, int bdDevId,
+      struct TFat *fat, struct TFatBuffers *fatBuffers, int partNo);
 int fsutils_umount(bdkT *bd, struct TFat *fat);
 
 /* Notes
