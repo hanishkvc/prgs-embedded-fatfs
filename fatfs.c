@@ -6,10 +6,13 @@
  */
 
 #include <stdio.h>
+
+#include <inall.h>
 #include <bdfile.h>
 #include <fatfs.h>
+#include <errs.h>
 
- /* FATBOOTSEC_MAXSIZE/4 , would align to 4byte boundry */
+/* FATBOOTSEC_MAXSIZE/4 , would align to 4byte boundry */
 uint32 _FBBuf[FATBOOTSEC_MAXSIZE/4];
 uint32 _FFBuf[FATFAT_MAXSIZE/4]; 
 uint32 _FRDBuf[FATROOTDIR_MAXSIZE/4];
@@ -36,8 +39,8 @@ int fatfs_init(int baseSec)
     res = fatfs16_loadrootdir();
   else
   {
-    printf("ERROR:fatfs: fat32 root dir loading  not supported currently\n");
-    return -1;
+    printf("ERROR:fatfs: fat32 rootDir loading  not supported\n");
+    return -ERROR_NOTSUPPORTED;
   }
   return res;
 }
@@ -45,8 +48,11 @@ int fatfs_init(int baseSec)
 int fatfs_loadbootsector()
 {
   int CountOfClusters;
-  uint8 *pCur, tBuf[32];
+  uint8 *pCur;
   uint32 tVerify;
+#if (DEBUG_PRINT_FATFS > 10)
+  uint8 tBuf[32];
+#endif
 
   bd_get_sectors(gFat.baseSec, 1, gFat.BBuf); 
   /* validate the FAT boot sector */
@@ -54,8 +60,8 @@ int fatfs_loadbootsector()
   tVerify = buffer_read_uint16_le(&pCur);
   if(tVerify != 0xaa55)
   {
-    printf("ERROR: 0xaa55 missing from offset 510\n");
-    return -1;
+    printf("ERROR:fatfs:bootsector: 0xaa55 missing from offset 510\n");
+    return -ERROR_INVALID;
   }
   /* extract the FAT boot sector info */
   pCur = gFat.BBuf;
@@ -76,14 +82,16 @@ int fatfs_loadbootsector()
   gFB.rootClus = buffer_read_uint32_le(&pCur);
   gFB.fsInfo = buffer_read_uint16_le(&pCur);
 
+#if (DEBUG_PRINT_FATFS > 10)
   printf("OEMName [%s] BytPerSec [%d] SecPerClus[%d]\n", 
     buffer_read_string_noup((gFat.BBuf+3),8,tBuf,32),gFB.bytPerSec,gFB.secPerClus);
   printf("TotSec16 [%d] TotSec32 [%ld]\n", 
     gFB.totSec16, gFB.totSec32);
   printf("NumFats [%d] FatSz16 [%d]\n",
     gFB.numFats, gFB.fatSz16);
-  printf("Media [%x] RsvdSecCnt [%d] RootEntCnt [%d]\n",
+  printf("Media [0x%x] RsvdSecCnt [%d] RootEntCnt [%d]\n",
     *BPB_Media(gFat.BBuf), gFB.rsvdSecCnt, gFB.rootEntCnt);
+#endif
 
   gFB.rootDirSecs = ((gFB.rootEntCnt*32)+(gFB.bytPerSec-1))/gFB.bytPerSec;
   if(gFB.fatSz16 != 0) gFB.fatSz = gFB.fatSz16; else gFB.fatSz = gFB.fatSz32;
@@ -111,39 +119,41 @@ int fatfs_loadbootsector()
   {
     pCur = gFat.BBuf+67;
     gFB.volID = buffer_read_uint32_le(&pCur);
-    printf("FatSz32[%ld] ExtFlags[%x] FSVer[%x] RootClus[%ld] FSInfo[%d]\n",
+#if (DEBUG_PRINT_FATFS > 10)
+    printf("FatSz32[%ld] ExtFlags[0x%x] FSVer[0x%x] RootClus[%ld] FSInfo[%d]\n",
       gFB.fatSz32, gFB.extFlags, gFB.fsVer, gFB.rootClus, gFB.fsInfo);
-    printf("BootSig[%x] VolID[%lx] VolLab[%11s] FilSysType [%8s]\n",
+    printf("BootSig[0x%x] VolID[0x%lx] VolLab[%11s] FilSysType [%8s]\n",
       *BS_32BootSig(gFat.BBuf), gFB.volID, 
       buffer_read_string_noup((gFat.BBuf+71),11,tBuf,32),
       buffer_read_string_noup((gFat.BBuf+82),8, (tBuf+16),16));
+#endif
   }
   else
   {
     /*
-    //gFB.rootClus = *BPB_32RootClus(gFat.BBuf);
-    gFB.volID = *BS_16VolID(gFat.BBuf);
-    printf("BootSig[%x] VolID[%lx] VolLab[%11s] FilSysType [%8s]\n",
+    printf("BootSig[0x%x] VolID[0x%lx] VolLab[%11s] FilSysType [%8s]\n",
       *BS_16BootSig(gFat.BBuf), gFB.volID, BS_16VolLab_sz11(gFat.BBuf), BS_16FilSysType_sz8(gFat.BBuf)); 
     */
     pCur = gFat.BBuf+39;
     gFB.volID = buffer_read_uint32_le(&pCur);
-    printf("BootSig[%x] VolID[%lx] VolLab[%11s] FilSysType [%8s]\n",
+#if (DEBUG_PRINT_FATFS > 10)
+    printf("BootSig[0x%x] VolID[0x%lx] VolLab[%11s] FilSysType [%8s]\n",
       *BS_16BootSig(gFat.BBuf), gFB.volID, 
       buffer_read_string_noup((gFat.BBuf+43),11,tBuf,32),
       buffer_read_string_noup((gFat.BBuf+54),8,(tBuf+16),16));
+#endif
   }
   /* verify limitations of this FatFS implementation */
   if(gFB.fatSz*gFB.bytPerSec > FATFAT_MAXSIZE)
   {
     printf("ERROR:fatfs: Fat size [%ld] > FATFAT_MAXSIZE [%d]\n", 
       gFB.fatSz*gFB.bytPerSec, FATFAT_MAXSIZE);
-    return -2;
+    return -ERROR_INSUFFICIENTRESOURCE;
   }
   if(gFB.isFat12)
   {
-    printf("ERROR:fatfs: Fat12 is not currently supported\n");
-    return -3;
+    printf("ERROR:fatfs: Fat12 is not supported\n");
+    return -ERROR_NOTSUPPORTED;
   }
   return 0;
 }
@@ -159,13 +169,15 @@ int fatfs16_loadrootdir()
 
   firstRootDirSecNum = gFB.rsvdSecCnt + (gFB.numFats*gFB.fatSz);
   rootDirSecs = (gFB.rootEntCnt*FATDIRENTRY_SIZE + (gFB.bytPerSec-1))/gFB.bytPerSec;
+#if (DEBUG_PRINT_FATFS > 15)
   printf("INFO:fatfs16: firstRootDirSecNum [%ld] secs[%ld]\n", 
     firstRootDirSecNum, rootDirSecs);
+#endif
   if(rootDirSecs*gFB.bytPerSec > FATROOTDIR_MAXSIZE)
   {
     printf("ERROR:fatfs16: rootDir size [%ld] > FATROOTDIR_MAXSIZE [%d]\n", 
       rootDirSecs*gFB.bytPerSec, FATROOTDIR_MAXSIZE);
-    return -1;
+    return -ERROR_INSUFFICIENTRESOURCE;
   }
   gFat.rdSize = rootDirSecs*gFB.bytPerSec;
   return bd_get_sectors(gFat.baseSec+firstRootDirSecNum, 
@@ -173,25 +185,27 @@ int fatfs16_loadrootdir()
 }
 
 int fatfs_fileinfo_indir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
-  struct TFileInfo *fInfo)
+  struct TFileInfo *fInfo, uint32 *prevPos)
 {
-  int iCur = 0, iCurLFN;
+  int iCur, iCurLFN;
   uint8 *pCur = dirBuf;
   int lfnPos = FILEINFOLFN_SIZE-1;
 
+  iCur = *prevPos;
   while(iCur+FATDIRENTRY_SIZE  <= dirBufSize)
   {
     pCur = dirBuf+iCur;
     iCur+=FATDIRENTRY_SIZE;
+    *prevPos = iCur;
     buffer_read_string(&pCur, FATDIRENTRYNAME_SIZE, fInfo->name, FILEINFONAME_SIZE);
     if(fInfo->name[0] == 0) /* no more entries in dir */
-      return -1;
+      return -ERROR_NOMORE;
     else if(fInfo->name[0] == 0xe5) /* free dir entry */
       continue;
     fInfo->attr = buffer_read_uint8_le(&pCur);
     if(fInfo->attr == FATATTR_LONGNAME)
     {
-      /* The code below forcibly converts unicode to ascii
+      /* FIXME: The code below forcibly converts unicode to ascii
       printf("INFO:fatfs:fileinfo_indir long file name \n");
       should be PARTIALCHARS*2 for unicode
       */
@@ -246,12 +260,16 @@ int fatfs_fileinfo_indir(char *cFile, uint8 *dirBuf, uint16 dirBufSize,
     fInfo->wrtDate = buffer_read_uint16_le(&pCur);
     fInfo->firstClus |= buffer_read_uint16_le(&pCur);
     fInfo->fileSize = buffer_read_uint32_le(&pCur);
-    printf("Info:fatfs: File[%s][%s] attr[%x] firstClus[%ld] fileSize[%ld]\n",
+#if (DEBUG_PRINT_FATFS > 15)
+    printf("INFO:fatfs: File[%s][%s] attr[0x%x] firstClus[%ld] fileSize[%ld]\n",
       fInfo->name, fInfo->lfn, fInfo->attr, fInfo->firstClus, fInfo->fileSize);
+#endif
     if(strncmp(fInfo->lfn,cFile,FILEINFOLFN_SIZE) == 0)
       return 0;
+    if(cFile[0] == 0)
+      return 0;
   }
-  return -1;
+  return -ERROR_NOTFOUND;
 }
 
 int fatfs16_getfile_opticlusterlist(struct TFileInfo fInfo, struct TClusList *cl, int *clSize, uint32 *prevClus)
@@ -278,9 +296,11 @@ int fatfs16_getfile_opticlusterlist(struct TFileInfo fInfo, struct TClusList *cl
        *clSize = iCL+1; /* *clSize returns the count of entries */
        return 0;
     }
+#if (DEBUG_PRINT_FATFS > 15)
     else
        printf("fatfs16:opticluslist: File[%s] nextClus[%ld]\n", 
          fInfo.name, iCurClus);
+#endif
     if((iCurClus-iPrevClus) == 1)
     {
       cl[iCL].adjClusCnt++;
@@ -302,7 +322,7 @@ int fatfs16_getfile_opticlusterlist(struct TFileInfo fInfo, struct TClusList *cl
     iPrevClus = iCurClus;
   }
   *clSize = iCL;
-  return -1;
+  return -ERROR_TRYAGAIN;
 }
 
 int fatfs_cleanup()

@@ -1,0 +1,14 @@
+
+#ifndef _ERRS_H_
+#define _ERRS_H_
+
+#define ERROR_NOTSUPPORTED 100
+#define ERROR_INVALID 101
+#define ERROR_INSUFFICIENTRESOURCE 102
+#define ERROR_TRYAGAIN 103
+
+#define ERROR_NOMORE 201
+#define ERROR_NOTFOUND 202
+
+#endif
+

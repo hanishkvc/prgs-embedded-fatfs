@@ -10,6 +10,10 @@
 
 #include <rwporta.h>
 
+#ifndef DEBUG_PRINT_FATFS
+#define DEBUG_PRINT_FATFS 11
+#endif
+
 #define FATBOOTSEC_MAXSIZE 512
 //#define FATFAT_MAXSIZE (1024*1024)
 #define FATFAT_MAXSIZE (2048*1024)
@@ -101,7 +105,7 @@ int fatfs_loadbootsector();
 int fatfs_loadfat();
 int fatfs16_loadrootdir();
 int fatfs_fileinfo_indir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
-  struct TFileInfo *fInfo);
+  struct TFileInfo *fInfo, uint32 *prevPos);
 int fatfs16_getfile_opticlusterlist(struct TFileInfo fInfo, struct TClusList *cl, int *clSize, uint32 *prevClus);
 int fatfs_cleanup();
 

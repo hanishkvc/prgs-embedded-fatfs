@@ -3,9 +3,12 @@
  * v14july2004
  * C Hanish Menon, 2003
  * 
- * v0.4
+ * v0.4 - 03Sep2003
  * - Made all buffer based read and write logic update the 
  *   buffer pointer passed to it.
+ * v0.4.1 - 17Nov2003-1043
+ * - Added some missing definitions in the header file
+ * - Also defined file_read/write_fourcc only if not already defined
  * v14july2004
  * - added support for extracting string from buffer
  *

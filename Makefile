@@ -1,13 +1,19 @@
+CC=$(CROSS)gcc
 CFLAGS = -Wall -O -g -I .
+C_FLAGS=
+arm-elf-C_FLAGS= -Wl,-elf2flt
+CFLAGS += $($(CROSS)C_FLAGS)
+
 TESTPATH=/mnt/temp1
 
-all: testfat
+all: $(CROSS)testfat
 
-testfat: testfat.c fatfs.c fatfs.h bdfile.c bdfile.h rwporta.c rwporta.h
-	gcc $(CFLAGS) -o testfat testfat.c fatfs.c bdfile.c rwporta.c
+$(CROSS)testfat: testfat.c fatfs.c fatfs.h bdfile.c bdfile.h part.c part.h rwporta.c rwporta.h inall.h
+	$(CC) $(CFLAGS) -o $(CROSS)testfat testfat.c fatfs.c bdfile.c part.c rwporta.c
 
 clean:
-	rm testfat
+	rm $(CROSS)testfat || /bin/true
+	rm $(CROSS)testfat.gdb || /bin/true
 
 16M: disk16M s16M f16M
 

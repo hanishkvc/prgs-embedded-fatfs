@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <inall.h>
 #include <bdfile.h>
 
 static int gFID;

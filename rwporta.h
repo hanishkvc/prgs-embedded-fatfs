@@ -21,8 +21,12 @@
 #define int16  short int
 #define int8   char
 
+#ifndef file_read_fourcc
 #define file_read_fourcc file_read_uint32_le
+#endif
+#ifndef file_write_fourcc
 #define file_write_fourcc file_write_buffer
+#endif
 
 uint32 file_read_uint32_le(FILE *fp);
 uint32 file_write_uint32_le(FILE *fp, uint32 data);
@@ -36,6 +40,9 @@ uint16 file_read_uint16_be(FILE *fp);
 uint16 file_write_uint16_be(FILE *fp, uint16 data);
 uint16 file_read_uint16_le(FILE *fp);
 uint16 file_write_uint16_le(FILE *fp, uint16 data);
+
+#define file_read_uint8_le file_read_uint8
+#define file_read_uint8(fp) fgetc(fp)
 
 int32 file_read_buffer(FILE *fp, uint8 *buffer, uint32 size);
 int32 file_write_buffer(FILE *fp, uint8 *buffer, uint32 size);
