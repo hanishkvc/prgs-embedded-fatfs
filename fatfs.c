@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v01Mar2005_1717
+ * v11Mar2005_2158
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -473,7 +473,8 @@ int FN83_expand(char *cFile, char *tcFile)
   {
     if((cFile[sCur] != '.') && (cFile[sCur] != (char)NULL))
       return -ERROR_INVALID;
-    sCur++;
+    if(cFile[sCur] == '.')
+      sCur++;
     for(;dCur<11;dCur++,sCur++)
     {
       tcFile[dCur] = cFile[sCur];
@@ -1390,22 +1391,38 @@ int fatfs_updatefileinfo_indirbuf(char *dirBuf, uint32 dirBufSize,
   if((fInfo->updated & FINFO_UPDATED_SIZE) 
         || (fInfo->updated & FINFO_UPDATED_ALL))
   {
+    // MAYBE: Check and make a dir's filesize to zero 
     pCur = pECur-4; /* offset of filesize */
-    *(uint32*)pCur = fInfo->newFileSize;
+    buffer_write_uint32_le_noup(pCur, fInfo->newFileSize);
   }
   if((fInfo->updated & FINFO_UPDATED_FIRSTCLUS)
         || (fInfo->updated & FINFO_UPDATED_ALL))
   {
     pCur = pECur-6; /* offset of ls16bits of firstCluster */
-    *(uint16*)pCur = fInfo->firstClus & 0xffff;
+    buffer_write_uint16_le_noup(pCur, fInfo->firstClus & 0xffff);
     pCur = pECur-12; /* offset of ms16bits of firstCluster */
-    *(uint16*)pCur = (fInfo->firstClus & 0xffff0000)>>16;
+    buffer_write_uint16_le_noup(pCur, (fInfo->firstClus & 0xffff0000)>>16);
   }
   if((fInfo->updated & FINFO_UPDATED_NAME)
         || (fInfo->updated & FINFO_UPDATED_ALL))
   {
-    pa_printstrErr("fatfs:updatefileinfo:FIXME: complete me\n");
+    /* Updating of 83 Name not required as it is the 83 Name
+     * which is used to find this particulart dirEntry 
+     * in the first place. Also renaming of file is handled
+     * as a seperate atomic function
+     */
+    pCur = pECur-FATDIRENTRY_SIZE;
+    buffer_write_buffer_noup(pCur,fInfo->name,FATDIRENTRYNAME_SIZE);
+    pa_printstrErr("fatfs:updatefileinfo:MAYBE FIXME: complete me\n");
   }
+  if(fInfo->updated & FINFO_UPDATED_ALL)
+  {
+    pCur = pECur-FATDIRENTRY_SIZE;
+    buffer_write_uint8_le_noup(pCur+11, fInfo->attr);
+  }
+  pCur = pECur-FATDIRENTRY_SIZE;
+  buffer_write_uint16_le_noup(pCur+22, fInfo->wrtTime);
+  buffer_write_uint16_le_noup(pCur+24, fInfo->wrtDate);
   return 0;
 }
 
@@ -1420,6 +1437,15 @@ int fatfs__deletefileinfo_indirbuf(uint8 *dirBuf, uint32 dirBufSize,
     pCur += FATDIRENTRY_SIZE;
   }
   return 0;
+}
+
+uint8 fatfs_calc_f83name_checksum(char *f83Name)
+{
+  uint8 chksum;
+  int iCur;
+  for(chksum=iCur=0;iCur<11;iCur++)
+    chksum = (((chksum&1)<<7)|((chksum&0xfe)>>1)) + f83Name[iCur];
+  return chksum;
 }
 
 int fatfs_cleanup(struct TFat *fat)
@@ -1661,25 +1687,35 @@ int fatfs__allocatedentry_indirbuf(uint8 *dirBuf, uint32 dirBufLen, int totContE
   uint32 prevPos=0;
   uint8 *freeDEntry, *pCur;
   int iRet, iCur;
+  uint8 chksum, ordinal;
   
   iRet = fatfs_getfreedentry_indirbuf(dirBuf, dirBufLen, totContEntries, &freeDEntry, &prevPos); 
   if(iRet != 0) return iRet;
+  chksum = fatfs_calc_f83name_checksum(fInfoPart->name);
   pCur=freeDEntry;
   for(iCur=1;iCur<totContEntries;iCur++) /* so that updatefileinfo doesn't get a shock */
   {
     pa_memset(pCur, 0, FATDIRENTRY_SIZE);
-    buffer_write_uint8_le_noup(pCur, totContEntries-iCur); /* ordinal ? */
+#if 1
+    buffer_write_uint8_le_noup(pCur, 0xe5);
+#else
+    ordinal = totContEntries-iCur;
+    if(iCur == 1)
+      ordinal |= 0x40;
+    buffer_write_uint8_le_noup(pCur, ordinal); /* ordinal */
     buffer_write_uint8_le_noup(pCur+11, FATATTR_LONGNAME);
+    buffer_write_uint8_le_noup(pCur+13, chksum);
+#endif
     pCur+=FATDIRENTRY_SIZE;
   }
   pa_memset(pCur, 0, FATDIRENTRY_SIZE);
   buffer_write_buffer_noup(pCur,fInfoPart->name,FATDIRENTRYNAME_SIZE);
-  buffer_write_uint8_le_noup(pCur+11, FATATTR_ARCHIVE);
+  buffer_write_uint8_le_noup(pCur+11, fInfoPart->attr);
   return 0;
 }
 
-int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId,
-      int flag)
+int fatuc__fopen(struct TFatFsUserContext *uc, char *cFile, int *fId,
+      int flag, int totContDEntries)
 {
   int iCur,iRet,stagePassed;
   uint8 *tDirBuf;
@@ -1724,13 +1760,86 @@ int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId,
   pa_memset(fInfo,0,sizeof(struct TFileInfo));
   fInfo->attr = FATATTR_ARCHIVE;
   buffer_write_buffer_noup(fInfo->name,tcFile,FATDIRENTRYNAME_SIZE);
-  iRet = fatfs__allocatedentry_indirbuf(tDirBuf, tDirBufLen, FATUC_FOPEN_CREATE_DENTRIESPERFILE, fInfo); 
+  iRet = fatfs__allocatedentry_indirbuf(tDirBuf, tDirBufLen, totContDEntries, fInfo); 
   if(iRet != 0) goto error_cleanup;
   fInfo->updated |= FINFO_UPDATED_ALL; /* fileclose writes dentry to device */
   return 0;
 error_cleanup:
   fatuc_fclose(uc,*fId);
   return iRet;
+}
+
+int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId,
+      int flag)
+{
+  return fatuc__fopen(uc,cFile,fId,flag,FATUC_FOPEN_CREATE_DENTRIESPERFILE);
+}
+	
+int fatuc_mkdir(struct TFatFsUserContext *uc, char *dirName, uint8* tBuf, int tBufLen)
+{
+  struct TFileInfo *fInfo, *dInfo;
+  int iRet,fId, retVal=0;
+  uint32 totalClusWriten, lastClus, fromClus;
+
+  if(tBufLen < FATFSUSERCONTEXTDIRBUF_MAXSIZE) 
+  {
+    pa_printstr("ERR:fatuc_mkdir: pass buffer with atleast length [");
+    pa_printints(FATFSUSERCONTEXTDIRBUF_MAXSIZE,"] bytes\n");
+    return -ERROR_INVALID;
+  }
+  else
+    tBufLen = FATFSUSERCONTEXTDIRBUF_MAXSIZE;
+  if(((unsigned int)tBuf&0x3) != 0)
+  {
+    pa_printstr("ERR:fatuc_mkdir: passed buffer is not 32bit aligned\n");
+    return -ERROR_INVALID;
+  }
+
+  iRet=fatuc_fopen(uc,dirName,&fId,FATUC_FOPEN_CREATE);
+  if(iRet != 0) return iRet;
+  fInfo = &uc->files[fId].fInfo;
+  dInfo = &uc->files[fId].dInfo;
+  /* Check if dir/file by this name already exists */
+  if(fInfo->firstClus != 0)
+  {
+    retVal = -ERROR_INVALID;
+    goto mkdir_cleanup;
+  }
+  fInfo->attr = FATATTR_DIR;
+  
+  pa_memset(tBuf,0,tBufLen);
+  fromClus=lastClus=0;
+  iRet = fatfs__storefileclus_usefileinfo(uc->fat,fInfo,tBuf,tBufLen,
+           &totalClusWriten,&lastClus,&fromClus);
+  if(iRet != 0)
+  {
+    retVal = iRet;
+    goto mkdir_cleanup;
+  }
+ 
+  /* create . entry - curdir */
+  buffer_write_buffer_noup(tBuf,".            ",11); /* have more spaces just to be safe */
+  buffer_write_uint8_le_noup(tBuf+11,FATATTR_DIR);
+  buffer_write_uint16_le_noup(tBuf+26, fInfo->firstClus & 0xffff);
+  buffer_write_uint16_le_noup(tBuf+20, (fInfo->firstClus & 0xffff0000)>>16);
+  /* create .. entry - parentdir */
+  buffer_write_buffer_noup(tBuf+32,"..           ",11); /* have more spaces just to be safe */
+  buffer_write_uint8_le_noup(tBuf+32+11,FATATTR_DIR);
+  buffer_write_uint16_le_noup(tBuf+32+26, dInfo->firstClus & 0xffff);
+  buffer_write_uint16_le_noup(tBuf+32+20, (dInfo->firstClus & 0xffff0000)>>16);
+
+  fromClus=lastClus=0;
+  iRet = fatfs__storefileclus_usefileinfo(uc->fat,fInfo,tBuf,tBufLen,
+           &totalClusWriten,&lastClus,&fromClus);
+  if(iRet != 0)
+  {
+    retVal = iRet;
+    goto mkdir_cleanup;
+  }
+  fInfo->newFileSize = 0; // Cas this is a directory
+mkdir_cleanup:
+  fatuc_fclose(uc,fId);
+  return retVal;
 }
 
 #define FATUC_TEMP_CLSIZE 64
@@ -1944,10 +2053,16 @@ int fatuc__syncfileinfo(struct TFatFsUserContext *uc, int fId)
   uint8 *dBuf;
   uint32 dBufLen;
   int iRet;
+  int8 day, month, hr, min, sec;
+  int32 year;
 
   f=&uc->files[fId];
   iRet = fatuc__getdirbufoffile(uc,fId,&dBuf,&dBufLen);
   if(iRet != 0) return iRet;
+  pa_getdatetime(&year, &month, &day, &hr, &min, &sec);
+  if(year >= 80) year -= 80; else year = 0;
+  f->fInfo.wrtDate = ((day&0x1f)|((month&0xf)<<5)|((year&0x7f)<<9));
+  f->fInfo.wrtTime = ((sec&0x1f)|((min&0x3f)<<5)|((hr&0x1f)<<11));
   iRet = fatfs_updatefileinfo_indirbuf(dBuf, dBufLen, &f->fInfo);
   if(iRet != 0) return iRet;
   iRet = fatuc__savedirbuf(uc,&f->dInfo,dBuf,dBufLen);
@@ -1957,7 +2072,7 @@ int fatuc__syncfileinfo(struct TFatFsUserContext *uc, int fId)
   return 0;
 }
 
-int fatuc__deletefile(struct TFatFsUserContext *uc, int fId)
+int fatuc__remove_dentry(struct TFatFsUserContext *uc, int fId)
 {
   struct TFatFile *f;
   uint8 *dBuf;
@@ -1965,8 +2080,6 @@ int fatuc__deletefile(struct TFatFsUserContext *uc, int fId)
   int iRet;
 
   f=&uc->files[fId];
-  iRet = fatfs__freefilefatentries_usefileinfo(uc->fat, &f->fInfo, 0);
-  if(iRet != 0) return iRet;
   iRet = fatuc__getdirbufoffile(uc,fId,&dBuf,&dBufLen);
   if(iRet != 0) return iRet;
   iRet = fatfs__deletefileinfo_indirbuf(dBuf, dBufLen, &f->fInfo);
@@ -1975,6 +2088,77 @@ int fatuc__deletefile(struct TFatFsUserContext *uc, int fId)
   if(iRet != 0) return iRet;
   f->fInfo.updated = FINFO_UPDATED_NONE;
   return 0;
+}
+
+int fatuc__deletefile(struct TFatFsUserContext *uc, int fId)
+{
+  struct TFatFile *f;
+  int iRet;
+
+  f=&uc->files[fId];
+  iRet = fatfs__freefilefatentries_usefileinfo(uc->fat, &f->fInfo, 0);
+  if(iRet != 0) return iRet;
+  return fatuc__remove_dentry(uc,fId);
+}
+
+int fatuc_move_dentry(struct TFatFsUserContext *uc, char *src, 
+      char* destPath, char16* u16FName, char* tBuf, int tBufLen)
+{
+  int totContDEntries = 0;
+  struct TFatFile *sF, *dF;
+  int iRet, fSId=-1, fDId=-1, destMaxLen, iPos;
+
+  iRet = fatuc_fopen(uc,src,&fSId,0);
+  if(iRet != 0) return iRet;
+  sF=&uc->files[fSId];
+  if(u16FName == NULL)
+    totContDEntries = ((sF->fInfo.lDEntryPos - sF->fInfo.fDEntryPos)/FATDIRENTRY_SIZE)+1;
+  iRet = fatuc__remove_dentry(uc,fSId);
+  if(iRet != 0) goto error_cleanup;
+
+  if(tBufLen < FATFSPATHNAME_MAXSIZE)
+  {
+    pa_printstr("ERR:fatuc_move_dentry: tempBuf should be atleast [");
+    pa_printints(FATFSPATHNAME_MAXSIZE,"] bytes\n");
+    iRet = -ERROR_INSUFFICIENTRESOURCE;
+    goto error_cleanup;
+  }
+  iRet = util_extractfilefrompath(src, uc->pName, FATFSPATHNAME_MAXSIZE, 
+           uc->fName, FATFSLFN_SIZE);
+  if(iRet != 0) goto error_cleanup;
+  destMaxLen = FATFSPATHNAME_MAXSIZE-FATFSLFN_SIZE;
+  iRet = pa_strncpyEx(tBuf,destPath,destMaxLen,&iPos);
+  if(iRet != 0) goto error_cleanup;
+  if(tBuf[iPos-1] != FATFS_DIRSEP)
+  {
+    tBuf[iPos] = FATFS_DIRSEP;
+    iPos++;
+    tBuf[iPos] = (char)NULL;
+  }
+  iRet = pa_strncpy(&tBuf[iPos],uc->fName,FATFSLFN_SIZE);
+  if(iRet != 0) goto error_cleanup;
+
+  iRet = fatuc__fopen(uc,tBuf,&fDId,FATUC_FOPEN_CREATE,totContDEntries);
+  if(iRet != 0) goto error_cleanup;
+  dF=&uc->files[fDId];
+  if(dF->fInfo.firstClus != 0)
+  {
+    pa_printstr("ERR:fatuc_move_dentry: destPath already contains the file\n");
+    iRet = -ERROR_INVALID;
+    goto error_cleanup;
+  }
+  dF->fInfo.attr = sF->fInfo.attr;
+  dF->fInfo.firstClus = sF->fInfo.firstClus;
+  //dF->fInfo.fileSize = sF->fInfo.fileSize; /* newFileSize will do */
+  dF->fInfo.newFileSize = sF->fInfo.fileSize;
+  /* FIXME: LFN name to be handled */
+  
+error_cleanup:
+  if(fSId >= 0)
+    fatuc_fclose(uc,fSId);
+  if(fDId >= 0)
+    fatuc_fclose(uc,fDId);
+  return iRet;
 }
 
 int fatuc_fclose(struct TFatFsUserContext *uc, int fId)

@@ -1,6 +1,6 @@
 /*
  * rwporta.h - cross platform portability layer for read/write
- * v04Oct2004_1522
+ * v11Mar2005_1222
  * C Hanish Menon, 2003
  * 
  * v0.4 - 03Sep2003
@@ -19,6 +19,8 @@
  *   it which is ok for now but inefficient as it would ignore NULL
  *   termination.
  * - added buffer_write_uint8_[le|be][_noup]
+ * v11Mar2005
+ * - added buffer_write_uint[16|32]_le_noup
  *
  */
 #include "rwporta.h"
@@ -280,6 +282,13 @@ uint32 buffer_write_uint32_le(uint8 **curPos, uint32 data)
 	return data;
 }
 
+uint32 buffer_write_uint32_le_noup(uint8 *curPos, uint32 data)
+{
+  uint8 *tCurPos = curPos;
+  return buffer_write_uint32_le(&tCurPos, data);
+}
+
+
 uint16 buffer_write_uint16_be(uint8 **curPos, uint16 data)
 {
 	uint8 temp;
@@ -316,6 +325,12 @@ uint16 buffer_write_uint16_le(uint8 **curPos, uint16 data)
 	**curPos = temp; (*curPos)++;
 
 	return data;
+}
+
+uint16 buffer_write_uint16_le_noup(uint8 *curPos, uint16 data)
+{
+  uint8 *tCurPos = curPos;
+  return buffer_write_uint16_le(&tCurPos, data);
 }
 
 uint16 buffer_read_uint16_le(uint8 **curPos)

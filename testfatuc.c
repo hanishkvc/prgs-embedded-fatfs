@@ -271,3 +271,27 @@ int testfatuc_deletefile(struct TFatFsUserContext *uc, char *sFile)
   return ret;
 }
 
+int testfatuc_mkdir(struct TFatFsUserContext *uc, char *sFile)
+{
+
+  printf("testfatuc:INFO: mkdir [%s]\n",sFile);
+  if(fatuc_mkdir(uc, sFile, gDataBuf, gDataBufSize) != 0)
+  {
+    printf("testfatuc:ERROR:mkdir: [%s]\n", sFile);
+    return -1;
+  }
+  return 0;
+}
+
+int testfatuc_move(struct TFatFsUserContext *uc, char *sFile, char *destPath)
+{
+
+  printf("testfatuc:INFO: move [%s] to [%s]\n",sFile,destPath);
+  if(fatuc_move_dentry(uc, sFile, destPath, NULL, gDataBuf, gDataBufSize) != 0)
+  {
+    printf("testfatuc:ERROR:moving: [%s]\n", sFile);
+    return -1;
+  }
+  return 0;
+}
+

@@ -1,12 +1,15 @@
 /*
  * utilsporta.c - portability utility functions
- * v14Oct2004-1837
+ * v11Mar2005-1257
  * C Hanish Menon <hanishkvc>, 28Aug2004
  */
 
 #include <utilsporta.h>
 #include <errorporta.h>
 
+#ifdef OS_LINUX
+#include <time.h>
+#endif
 #include <stdio.h>
 #define na_fprintf fprintf
 #define na_printstr printf
@@ -563,5 +566,28 @@ int pa_isdigit(char iCur)
   if((iCur>='0')&&(iCur<='9'))
     return 1;
   return 0;
+}
+
+void pa_getdatetime(int32* yearSince1900, uint8* month, uint8* day, 
+       uint8* hr, uint8* min, uint8* sec)
+{
+  *yearSince1900 = 0; *month = 0; *day = 0;
+  *hr = 0; *min = 0; *sec = 0;
+#ifdef OS_LINUX
+  {
+  struct tm cTm;
+  time_t curTime;
+  time(&curTime);
+  if(gmtime_r(&curTime,&cTm) != NULL)
+  {
+    *yearSince1900 = cTm.tm_year;
+    *month = cTm.tm_mon+1;
+    *day = cTm.tm_mday;
+    *hr = cTm.tm_hour;
+    *min = cTm.tm_min;
+    *sec = cTm.tm_sec;
+  }
+  }
+#endif
 }
 

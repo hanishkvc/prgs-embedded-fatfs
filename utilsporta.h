@@ -52,5 +52,9 @@ int pa_perror(char *str);
 int pa_isspace(char iCur);
 int pa_isdigit(char iCur);
 
+#define OS_LINUX 1
+void pa_getdatetime(int32* yearSince1900, uint8* month, uint8* day, 
+       uint8* hr, uint8* min, uint8* sec);
+
 #endif
 

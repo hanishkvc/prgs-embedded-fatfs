@@ -8,7 +8,7 @@
 #ifndef _FATFS_H_
 #define _FATFS_H_
 
-#define FATFS_LIBVER "v01Mar2005_1717"
+#define FATFS_LIBVER "v11Mar2005_2158"
 
 #include <rwporta.h>
 #include <bdk.h>
@@ -255,12 +255,16 @@ int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,
       struct TFileInfo *fInfo, uint32 *prevPos);
 int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId,
       int flag);
+int fatuc_mkdir(struct TFatFsUserContext *uc, char *dirName,
+      uint8* tBuf, int tBufLen);
 int fatuc_fseek(struct TFatFsUserContext *uc, int fId,
       int32 offset, int whence);
 int fatuc_fread(struct TFatFsUserContext *uc, int fId,
       uint8 *buf, uint32 bufLen, uint32 bytesToRead, 
       uint8 **atBuf, uint32 *bytesRead);
 int fatuc__deletefile(struct TFatFsUserContext *uc, int fId);
+int fatuc_move_dentry(struct TFatFsUserContext *uc, char *src, 
+      char* destPath, char16* u16FName, char* tBuf, int tBufLen);
 int fatuc_fclose(struct TFatFsUserContext *uc, int fId);
 
 #endif

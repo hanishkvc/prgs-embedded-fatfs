@@ -8,6 +8,21 @@ ToDo
   * 1st phase set only the DEV bit
   * 2nd phase also update the LBAAddr bits
 
+11Mar2005
+* InBrief
+  * Added support for mkdir
+  * fixed a issue with FN83_expand when the name given is exactly 
+    8 chars long
+  * updated updatefileinfo_indirbuf so that it also saves Attribute 
+    and wrtDate and wrtTime to as required disk.
+  * added logic to calculate the chksum stored as part of direntries
+  * Updated the new directory entry creation logic such that it 
+    creates free dentries infront of 8.3 name entry so that if
+    longfilename requires to be assigned there is space readily
+    avialable.
+  * Added support for moving file/dir. However currently it doesnot
+    handle Long File Names.
+
 01Mar2005
 * InBrief
   * Completed the caching logic for FreeClusList in TFat

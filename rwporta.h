@@ -57,9 +57,11 @@ uint16 buffer_write_uint16_be(uint8 **curPos, uint16 data);
 
 uint32 buffer_read_uint32_le(uint8 **curPos);
 uint32 buffer_write_uint32_le(uint8 **curPos, uint32 data);
+uint32 buffer_write_uint32_le_noup(uint8 *curPos, uint32 data);
 
 uint16 buffer_read_uint16_le(uint8 **curPos);
 uint16 buffer_write_uint16_le(uint8 **curPos, uint16 data);
+uint16 buffer_write_uint16_le_noup(uint8 *curPos, uint16 data);
 
 #define buffer_read_uint8_be buffer_read_uint8_le
 #define buffer_write_uint8_be buffer_write_uint8_le

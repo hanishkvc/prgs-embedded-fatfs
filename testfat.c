@@ -5,7 +5,7 @@
  * 
  */
 
-#define TESTFAT_PRGVER "v01Mar2005_1717"
+#define TESTFAT_PRGVER "v11Mar2005_2158"
 #undef NO_REALTIME_SCHED  
 
 #include <sched.h>
@@ -410,7 +410,8 @@ int main(int argc, char **argv)
     printf("(cd)chDir (cf)checkFile (reset)Reset (fs)readspeed (fsa)readspeedALL\n");
     printf("(nfc)normalfsfile checksum (ffc)fatfsfile checksum\n");
     printf("(FUC)FatUserContext Funcs (seek)seektest (fsfreelist)FilesysFreelist\n");
-    printf("(cpff)fileExtract2fatfs (del) deletefile (exit) Exit\n");
+    printf("(cpff)fileExtract2fatfs (del) deletefile (mkdir) mkdir (move) move\n");
+    printf("(exit) Exit\n");
     scanf("%s",sCur); fgetc(stdin);
     if(strcmp("ls",sCur) == 0)
     {
@@ -603,6 +604,24 @@ int main(int argc, char **argv)
       if(testfatuc_deletefile(&gUC, sBuf1) != 0)
         pa_printstrErr("testfat:ERROR: deletefile\n");
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"deletefile");
+    }
+    if(strcmp("mkdir",sCur) == 0)
+    {
+      printf("enter dir to create:");
+      scanf("%s",sBuf1); fgetc(stdin);
+      lu_starttime(&gTFtv1);
+      if(testfatuc_mkdir(&gUC, sBuf1) != 0)
+        pa_printstrErr("testfat:ERROR: mkdir\n");
+      lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"mkdir");
+    }
+    if(strcmp("move",sCur) == 0)
+    {
+      printf("enter src file/dir and destPath:");
+      scanf("%s %s", sBuf1, sBuf2);
+      fgetc(stdin);
+      lu_starttime(&gTFtv1);
+      testfatuc_move(&gUC, sBuf1, sBuf2);
+      lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"move");
     }
     if(strcmp("exit",sCur) == 0)
       bExit = 1;
