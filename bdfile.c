@@ -1,7 +1,7 @@
 /*
  * bdfile.c - library for working with a linux loop based filesystem file
- * v14july2004
- * C Hanish Menon, 2004
+ * v16july2004
+ * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
@@ -14,6 +14,7 @@
 
 #include <inall.h>
 #include <bdfile.h>
+#include <errs.h>
 
 static int gFID;
 
@@ -26,6 +27,16 @@ int bd_init()
     exit(10);
   }
   return 0;
+}
+
+int bd_get_sectors_fine(long sec, long count, char*buf, long bufLen)
+{
+  if(count*BDSECSIZE != bufLen)
+  {
+    printf("BDFILE:FIXME:getSectorsFine: bufLen != count*SECSIZE not yet implemented\n");
+    return -ERROR_NOTSUPPORTED;
+  }
+  return bd_get_sectors(sec, count, buf);
 }
 
 int bd_get_sectors(long sec, long count, char*buf)

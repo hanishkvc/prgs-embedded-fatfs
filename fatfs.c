@@ -1,7 +1,7 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v15july2004-2200
- * C Hanish Menon, 14july2004
+ * v17july2004-2130
+ * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
@@ -184,13 +184,34 @@ int fatfs16_loadrootdir()
     rootDirSecs, gFat.RDBuf); 
 }
 
-int fatfs_fileinfo_indir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
+int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
   struct TFileInfo *fInfo, uint32 *prevPos)
 {
-  int iCur, iCurLFN;
+  int iCur, iCurLFN, flagSpecialCurOrPrev;
   uint8 *pCur = dirBuf;
   int lfnPos = FILEINFOLFN_SIZE-1;
+  char tcFile[FATDIRENTRYNAME_SIZE+1];
 
+  /* logic added as . and .. directory entries don't have corresponding
+   * lfn entry in the directory
+   */
+  flagSpecialCurOrPrev = 0;
+  if(cFile[0] == '.')
+  {
+    flagSpecialCurOrPrev = 1;
+    if(cFile[1] == '.')
+    {
+      if(cFile[2] == (char)NULL)
+        strcpy(tcFile,"..         ");
+      else
+        flagSpecialCurOrPrev = 0;
+    }
+    else if(cFile[1] == (char)NULL)
+      strcpy(tcFile,".          ");
+    else
+      flagSpecialCurOrPrev = 0;
+  }
+  /****************/
   iCur = *prevPos;
   while(iCur+FATDIRENTRY_SIZE  <= dirBufSize)
   {
@@ -206,7 +227,7 @@ int fatfs_fileinfo_indir(char *cFile, uint8 *dirBuf, uint16 dirBufSize,
     if(fInfo->attr == FATATTR_LONGNAME)
     {
       /* FIXME: The code below forcibly converts unicode to ascii
-      printf("INFO:fatfs:fileinfo_indir long file name \n");
+      printf("INFO:fatfs:getfileinfo_fromdir long file name \n");
       should be PARTIALCHARS*2 for unicode
       */
       lfnPos-=FATDIRENTRYLFN_PARTIALCHARS; 
@@ -264,15 +285,23 @@ int fatfs_fileinfo_indir(char *cFile, uint8 *dirBuf, uint16 dirBufSize,
     printf("INFO:fatfs: File[%s][%s] attr[0x%x] firstClus[%ld] fileSize[%ld]\n",
       fInfo->name, fInfo->lfn, fInfo->attr, fInfo->firstClus, fInfo->fileSize);
 #endif
-    if(strncmp(fInfo->lfn,cFile,FILEINFOLFN_SIZE) == 0)
-      return 0;
+    if(flagSpecialCurOrPrev == 0)
+    {
+      if(strncmp(fInfo->lfn,cFile,FILEINFOLFN_SIZE) == 0)
+        return 0;
+    }
+    else
+    {
+      if(strncmp(fInfo->name,tcFile,FILEINFONAME_SIZE) == 0)
+        return 0;
+    }
     if(cFile[0] == 0)
       return 0;
   }
   return -ERROR_NOTFOUND;
 }
 
-int fatfs16_getfile_opticlusterlist(struct TFileInfo fInfo, struct TClusList *cl, int *clSize, uint32 *prevClus)
+int fatfs16_getopticluslist_usefileinfo(struct TFileInfo fInfo, struct TClusList *cl, int *clSize, uint32 *prevClus)
 {
   uint32 iCL = 0, iCurClus, iPrevClus;
 
@@ -324,6 +353,153 @@ int fatfs16_getfile_opticlusterlist(struct TFileInfo fInfo, struct TClusList *cl
   *clSize = iCL;
   return -ERROR_TRYAGAIN;
 }
+
+int fatfs_loadfilefull_usefileinfo(struct TFileInfo fInfo, uint8 *buf, uint32 bufLen)
+{
+  uint32 prevClus, totNoSecs, noSecs, bytesRead;
+  struct TClusList cl[16];
+  int resOCL, resGS, clSize, iCur;
+  
+  if(bufLen < fInfo.fileSize)
+  {
+    printf("ERROR:fatfs:load: insufficient buffer passed\n");
+    return -ERROR_INSUFFICIENTRESOURCE;
+  }
+  totNoSecs = 0;
+  prevClus = 0;
+  do
+  {
+    clSize = 16; 
+    resOCL = fatfs16_getopticluslist_usefileinfo(fInfo, cl, &clSize, &prevClus);
+    for(iCur=0; iCur < clSize; iCur++)
+    {
+      noSecs = (cl[iCur].adjClusCnt+1)*gFB.secPerClus;
+      totNoSecs += noSecs;
+      bytesRead = noSecs*gFB.bytPerSec;
+      bufLen -= bytesRead;
+      if(bufLen < 0)
+      {
+        if(resOCL != 0)
+        {
+          printf("NOTPOSSIBLE:1:fatfs:load: buffer space less by > a Clus\n");
+          return -ERROR_INSUFFICIENTRESOURCE;
+        }
+        if(bufLen <= -(gFB.secPerClus*gFB.bytPerSec))
+        {
+          printf("NOTPOSSIBLE:2:fatfs:load: buffer space less by > a Clus\n");
+          return -ERROR_INSUFFICIENTRESOURCE;
+        }
+        printf("DEBUGERROR:3:fatfs:load: buffer space less by < a clus\n");
+        bytesRead-=bufLen;
+      }
+      resGS=bd_get_sectors_fine(fatfs_firstsecofclus(cl[iCur].baseClus),noSecs,buf, bytesRead);
+      if(resGS != 0)
+      {
+        printf("DEBUG:fatfs:load: bd_get_sector failed\n");
+        return resGS;
+      }
+      buf += bytesRead; 
+    }
+  }while(resOCL != 0);
+  return totNoSecs;
+}
+
+int fatfs_uc_init(struct TFatFsUserContext *uc)
+{
+  uc->curDirBuf = gFat.RDBuf;
+  uc->curDirBufLen = gFat.rdSize;
+  return 0;
+}
+
+int util_gettoken(char **cBuf, char *token, int tokenLen, char sep)
+{
+  int iPos = 0;
+  char cCur;
+
+  token[iPos] = (uint8)NULL;
+  while((cCur=**cBuf) != (uint8)NULL)
+  {
+    (*cBuf)++;
+    if(cCur == sep)
+    {
+      token[iPos] = 0;
+      return 0;
+    }
+    token[iPos++] = cCur;
+    if(iPos >= tokenLen)
+      return -ERROR_INSUFFICIENTRESOURCE;
+  }
+  if(iPos == 0)
+    return -ERROR_NOMORE;
+  token[iPos] = 0;
+  return 0;
+}
+
+int fatfs_changedir(struct TFatFsUserContext *uc, char *fDirName)
+{
+  uint16 tokenLen = (FATDIRENTRYLFN_SIZE+1);
+  uint8 *dBuf;
+  uint32 dBufLen;
+  char *sDirName = fDirName, token[tokenLen];;
+
+  if(sDirName[0] == FATFS_DIRSEP)
+  {
+    sDirName++;
+    dBuf = gFat.RDBuf;
+    dBufLen = gFat.rdSize;
+  }
+  else
+  {
+    dBuf = uc->curDirBuf;
+    dBufLen = uc->curDirBufLen;
+  }
+
+  /* Extract individual dir names and get the corresponding dirBuf
+   * next get the subsequent subdir mentioned in the path
+   * till the leaf dir is found
+   */
+  while(util_gettoken(&sDirName, token, tokenLen, FATFS_DIRSEP) == 0)
+  {
+    uint32 prevPos, res;
+    struct TFileInfo fInfo;
+
+    printf("fatfs:chdir:token [%s]\n", token);
+    prevPos = 0;
+    res = fatfs_getfileinfo_fromdir(token, dBuf, dBufLen, &fInfo, &prevPos);
+    if(res != 0)
+    {
+      printf("fatfs:chdir:subdir[%s] not found\n", token);
+      return -ERROR_NOTFOUND;
+    }
+    if(fInfo.attr != FATATTR_DIR)
+    {
+      printf("fatfs:chdir:NOT A directory [%s]\n", token);
+      return -ERROR_INVALID;
+    }
+    /* special case of root dir got from a rootdirs_subdir\.. */
+    if((fInfo.firstClus == 0) && (fInfo.fileSize == 0))
+    {
+      dBuf = gFat.RDBuf;
+      dBufLen = gFat.rdSize;
+    }
+    else
+    {
+      res = fatfs_loadfilefull_usefileinfo(fInfo, (uint8*)uc->dirBuf, 
+        FATFSUSERCONTEXTDIRBUF_MAXSIZE);
+      dBuf = (uint8*)uc->dirBuf;
+      dBufLen = res*gFB.bytPerSec;
+      if(res <=  0)
+      {
+        printf("fatfs:chdir:loading subdir[%s] data failed with [%ld]\n",
+          fInfo.lfn, res);
+        return res;
+      }
+    }
+  }
+  uc->curDirBuf = dBuf;
+  uc->curDirBufLen = dBufLen;
+  return 0;
+} 
 
 int fatfs_cleanup()
 {

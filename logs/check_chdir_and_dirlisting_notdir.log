@@ -1,0 +1,16 @@
+Usage: ./testfat <y|n = partition> <filetocheck> <y|n = rootdirlist>
+************* partition loading ******************
+**Fat16**
+************* Check file logic ******************
+testfat: File[DIR1       ][dir1] attr[0x10] firstClus[4114] fileSize[0]
+[DIR1       ] Optimised ClusList baseClus[4114] adjClusCnt[0] prevClus[0]
+************* dir[\dir1\.\dir11\..\..\dir2\dir21\reallyDIR21longfilename.log] listing ******************
+fatfs:chdir:token [dir1]
+fatfs:chdir:token [.]
+fatfs:chdir:token [dir11]
+fatfs:chdir:token [..]
+fatfs:chdir:token [..]
+fatfs:chdir:token [dir2]
+fatfs:chdir:token [dir21]
+fatfs:chdir:token [reallyDIR21longfilename.log]
+fatfs:chdir:NOT A directory [reallyDIR21longfilename.log]

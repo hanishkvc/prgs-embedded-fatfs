@@ -38,7 +38,15 @@ f16M:
 	echo "abcdefgh" > $(TESTPATH)/abc6.txt
 	dd if=/dev/zero of=$(TESTPATH)/zero3.log bs=4096 count=512
 	echo "0987654321" > $(TESTPATH)/reallylongfilenamereallyrealylongfilenamereallyreallyreallylongfilename.log
-	dd if=/dev/zero of=$(TESTPATH)/zero4.log bs=4096 count=4096 || /bin/true
+	mkdir $(TESTPATH)/dir1
+	echo "0987654321" > $(TESTPATH)/dir1/reallyDIR1longfilename.log
+	mkdir $(TESTPATH)/dir1/dir11
+	echo "0987654321" > $(TESTPATH)/dir1/dir11/reallyDIR11longfilename.log
+	mkdir $(TESTPATH)/dir2
+	echo "0987654321" > $(TESTPATH)/dir2/reallyDIR2longfilename.log
+	mkdir $(TESTPATH)/dir2/dir21
+	echo "0987654321" > $(TESTPATH)/dir2/dir21/reallyDIR21longfilename.log
+	dd if=/dev/zero of=$(TESTPATH)/dir2/zero4.log bs=4096 count=4096 || /bin/true
 	rm $(TESTPATH)/abc2.txt
 	rm $(TESTPATH)/abc3.txt
 	rm $(TESTPATH)/abc4.txt

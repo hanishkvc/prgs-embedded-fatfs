@@ -15,14 +15,18 @@
 #endif
 
 #define FATBOOTSEC_MAXSIZE 512
-//#define FATFAT_MAXSIZE (1024*1024)
 #define FATFAT_MAXSIZE (2048*1024)
 #define FATROOTDIR_MAXSIZE (512*1024)
 #define FATDIRENTRY_SIZE 32
 #define FATDIRENTRYNAME_SIZE 11
-#define FILEINFONAME_SIZE 12
-#define FILEINFOLFN_SIZE 256
+#define FATDIRENTRYLFN_SIZE 255
+#define FILEINFONAME_SIZE (FATDIRENTRYNAME_SIZE+1)
+#define FILEINFOLFN_SIZE (FATDIRENTRYLFN_SIZE+1)
 #define FATDIRENTRYLFN_PARTIALCHARS 13
+
+#define FATFSUSERCONTEXTDIRBUF_MAXSIZE (2048*FATDIRENTRY_SIZE)
+
+#define FATFS_DIRSEP '\\'
 
 #define FATATTR_READONLY 0x01
 #define FATATTR_HIDDEN   0x02
@@ -58,7 +62,7 @@
 #define BS_32VolLab_sz11(base) (unsigned char*)((long)base+71)
 #define BS_32FilSysType_sz8(base) (unsigned char*)((long)base+82)
 
-#define FATFS_FirstSecOfClus(N) (((N-2)*gFB.secPerClus)+gFB.firstDataSec)
+#define fatfs_firstsecofclus(N) (((N-2)*gFB.secPerClus)+gFB.firstDataSec)
 /* assumes FAT is a uint8 array */
 #define FAT16Offset(N) (N*2)
 #define FAT32Offset(N) (N*4) 
@@ -97,6 +101,14 @@ struct TClusList
   uint32 adjClusCnt;
 };
 
+struct TFatFsUserContext
+{
+  uint8 *curDirBuf;
+  uint32 curDirBufLen;
+  uint32 dirBuf[FATFSUSERCONTEXTDIRBUF_MAXSIZE/4];
+  /* future when dynamic uint32 dirBufLen; */
+};
+
 extern struct TFatBootSector gFB;
 extern struct TFat gFat;
 
@@ -104,10 +116,14 @@ int fatfs_init(int baseSec);
 int fatfs_loadbootsector();
 int fatfs_loadfat();
 int fatfs16_loadrootdir();
-int fatfs_fileinfo_indir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
+int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
   struct TFileInfo *fInfo, uint32 *prevPos);
-int fatfs16_getfile_opticlusterlist(struct TFileInfo fInfo, struct TClusList *cl, int *clSize, uint32 *prevClus);
+int fatfs16_getopticluslist_usefileinfo(struct TFileInfo fInfo, struct TClusList *cl, int *clSize, uint32 *prevClus);
+int fatfs_loadfilefull_usefileinfo(struct TFileInfo fInfo, uint8 *buf, uint32 bufLen);
 int fatfs_cleanup();
+
+int fatfs_uc_init(struct TFatFsUserContext *uc);
+int fatfs_changedir(struct TFatFsUserContext *uc, char *fDirName);
 
 #endif
 

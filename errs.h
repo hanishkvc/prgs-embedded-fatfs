@@ -10,5 +10,6 @@
 #define ERROR_NOMORE 201
 #define ERROR_NOTFOUND 202
 
+#define ERROR_UNKNOWN 999
 #endif
 
