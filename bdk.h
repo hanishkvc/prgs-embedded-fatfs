@@ -1,6 +1,6 @@
 /*
  * bdk.h - generic blockdev logic
- * v06Nov2004_1737
+ * v17Mar2005_1307
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -12,11 +12,15 @@
 #define BDK_SECSIZE_512 512
 #define BDK_DEVNAMELEN 16
 
+#define BDK_FLAG_INITRESET 0x1
+#define BDK_FLAG_BUSSLOW   0x2
+#define BDK_FLAG_SECSINGLE 0x4
+
 typedef struct blockDevKT
 {
   int grpId, devId;
   int (*init)(struct blockDevKT*, char* secBuf, 
-               int grpId, int devId, int reset);
+               int grpId, int devId, int bdkFlags);
   int (*get_sectors)(struct blockDevKT*, long sec, long count, char* buf); 
   int (*put_sectors)(struct blockDevKT*, long sec, long count, char* buf); 
   int (*cleanup)(struct blockDevKT*);
@@ -24,7 +28,7 @@ typedef struct blockDevKT
   char name[BDK_DEVNAMELEN];
   long secSize, multiCnt;
   unsigned long totSecs;
-  /* for bdhdd */
+  /* for bdhdd/bdh8b16 */
   int CMDBR, CNTBR;
   /* general */
   void *u1, *u2, *u3, *u4;

@@ -1,6 +1,6 @@
 /*
  * bdhdd.h - library for working with a ide HDD
- * v01Feb2005_1732
+ * v17Mar2005_1442
  * C Hanish Menon, 2004
  * 
  */
@@ -136,6 +136,10 @@
 
 #define BDHDD_SECCNT_MAX 256
 #define BDHDD_SECCNT_USE 256
+
+int bdhdd_get_sectors_single(bdkT *bd, long sec, long count, char *buf);
+int bdhdd_get_sectors(bdkT *bd, long sec, long count, char *buf);
+int bdhdd_put_sectors_single(bdkT *bd, long sec, long count, char *buf);
 
 #endif
 

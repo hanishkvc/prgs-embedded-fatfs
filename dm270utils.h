@@ -173,12 +173,12 @@ static inline int gio_bit_isset(int nGIO)
 
 inline void bdh8b16_inswk_dm270dma(uint32 port, uint16* buf, int count);
 inline void bdh8b16_outswk_dm270dma(uint32 port, uint16* buf, int count);
-int bdh8b16_init_grpid_dm270ide_h8b16(bdkT *bd, int grpId, int devId);
+int bdh8b16_init_grpid_dm270ide_h8b16(bdkT *bd, int grpId, int devId, int bdkFlags);
 
 inline void bdhdd_inswk_dm270dma(uint32 port, uint16* buf, int count);
 inline void bdhdd_outswk_dm270dma(uint32 port, uint16* buf, int count);
-int bdhdd_init_grpid_dm270cf_fpmc(bdkT *bd, int grpId, int devId);
-int bdhdd_init_grpid_dm270cf_MemCARD3PCtlr(bdkT *bd, int grpId, int devId);
+int bdhdd_init_grpid_dm270cf_fpmc(bdkT *bd, int grpId, int devId, int bdkFlags);
+int bdhdd_init_grpid_dm270cf_MemCARD3PCtlr(bdkT *bd, int grpId, int devId, int bdkFlags);
 
 #endif
 

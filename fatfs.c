@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v17Mar2005_2008
+ * v18Mar2005_1448
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -509,7 +509,7 @@ int fatfs_getfreedentry_indirbuf(uint8 *dirBuf, uint32 dirBufSize,
       if(iCur <= dirBufSize) return 0;
       return -ERROR_NOMORE;
     }
-    else if(tName[0] == 0xe5) /* free dir entry */
+    else if(tName[0] == FATFS_FREEDENTRY) /* free dir entry */
     {
       if(iContEnts == 0)
         *freeDEntry = dirBuf+iCur-FATDIRENTRY_SIZE;
@@ -573,7 +573,7 @@ int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint32 dirBufSize,
     buffer_read_buffertostring(&pCur,FATDIRENTRYNAME_SIZE,fInfo->name,FATFSNAME_SIZE);
     if(fInfo->name[0] == 0) /* no more entries in dir */
       return -ERROR_NOMORE;
-    else if(fInfo->name[0] == 0xe5) /* free dir entry */
+    else if(fInfo->name[0] == FATFS_FREEDENTRY) /* free dir entry */
       continue;
     fInfo->attr = buffer_read_uint8_le(&pCur);
     if(fInfo->attr == FATATTR_LONGNAME)
@@ -615,7 +615,7 @@ int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint32 dirBufSize,
       fInfo->fDEntryPos = iCur-FATDIRENTRY_SIZE;
       fInfo->lfn[0] = 0;
     }
-    fInfo->lDEntryPos = iCur;
+    fInfo->lDEntryPos = iCur-FATDIRENTRY_SIZE;
     fInfo->ntRes = buffer_read_uint8_le(&pCur);
     fInfo->crtTimeTenth = buffer_read_uint8_le(&pCur);
     fInfo->crtTime = buffer_read_uint16_le(&pCur);
@@ -1433,7 +1433,7 @@ int fatfs__deletefileinfo_indirbuf(uint8 *dirBuf, uint32 dirBufSize,
   pCur = dirBuf+fInfo->fDEntryPos;
   while(pCur <= (dirBuf+fInfo->lDEntryPos))
   {
-    pCur[0] = 0xe5;
+    pCur[0] = FATFS_FREEDENTRY;
     pCur += FATDIRENTRY_SIZE;
   }
   return 0;
@@ -1698,7 +1698,7 @@ int fatfs__allocatedentry_indirbuf(uint8 *dirBuf, uint32 dirBufLen, int totContE
   {
     pa_memset(pCur, 0, FATDIRENTRY_SIZE);
 #if 1
-    buffer_write_uint8_le_noup(pCur, 0xe5);
+    buffer_write_uint8_le_noup(pCur, FATFS_FREEDENTRY);
 #else
     {
     uint8 ordinal;
@@ -1715,6 +1715,8 @@ int fatfs__allocatedentry_indirbuf(uint8 *dirBuf, uint32 dirBufLen, int totContE
   pa_memset(pCur, 0, FATDIRENTRY_SIZE);
   buffer_write_buffer_noup(pCur,fInfoPart->name,FATDIRENTRYNAME_SIZE);
   buffer_write_uint8_le_noup(pCur+11, fInfoPart->attr);
+  fInfoPart->fDEntryPos = pCur-dirBuf; 
+  fInfoPart->lDEntryPos = pCur-dirBuf;
   return 0;
 }
 
@@ -2149,15 +2151,25 @@ int fatuc_move_dentry(struct TFatFsUserContext *uc, char *src,
   int iRet, fSId=-1, fDId=-1, destMaxLen, iPos;
   int tildePos, iNameCnt;
   char s83FName[FATFS8d3NAME_SIZE];
+  uint8 ordinal,chksum,*pCur,*dBuf; 
+  int lfnBPos,iCur; uint32 dBufLen;
 
   iRet = fatuc_fopen(uc,src,&fSId,0);
   if(iRet != 0) return iRet;
   sF=&uc->files[fSId];
   if(u16FName == NULL)
+  {
     totContDEntries = ((sF->fInfo.lDEntryPos - sF->fInfo.fDEntryPos)/FATDIRENTRY_SIZE)+1;
+    tildePos = 0;
+    if(totContDEntries > 1)
+    {
+      if(sF->fInfo.name[6] == '~')
+        tildePos = 6;
+    }
+  }
   else
   {
-    totContDEntries = (pa_strnlen_c16(u16FName,FATDIRENTRYLFN_SIZE)/FATDIRENTRYLFN_PARTIALCHARS) + 1;
+    totContDEntries = ((pa_strnlen_c16(u16FName,FATDIRENTRYLFN_SIZE)+FATDIRENTRYLFN_PARTIALCHARS-1)/FATDIRENTRYLFN_PARTIALCHARS) + 1;
     util_prep8d3_fromLFN(s83FName,u16FName,FATFS8d3NAME_SIZE,&tildePos);
   }
   iRet = fatuc__remove_dentry(uc,fSId);
@@ -2205,13 +2217,68 @@ NextName:
     fatuc_fclose(uc,fDId); fDId = -1;
     iNameCnt++;
     tBuf[tildePos+1] = (char)((int)'0'+iNameCnt);
+    pa_printstr("INFO:fatuc_move_dentry: Name clash, trying nextname [");
+    pa_printstr(tBuf); pa_printstr("]\n");
     goto NextName;
   }
   dF->fInfo.attr = sF->fInfo.attr;
   dF->fInfo.firstClus = sF->fInfo.firstClus;
   dF->fInfo.newFileSize = sF->fInfo.fileSize;
-  /* FIXME: LFN name to be handled */
-  
+  /* Logic handling LFN name */
+  if(totContDEntries >= 2)
+  {
+    iRet = fatuc__getdirbufoffile(uc,fDId,&dBuf,&dBufLen);
+    if(iRet != 0) return iRet;
+    pa_memset(dF->fInfo.lfn,0,FATFSLFN_SIZE*sizeof(char16));
+    if(u16FName)
+      pa_strncpyEx_c16(dF->fInfo.lfn,u16FName,FATFSLFN_SIZE,&iCur);
+    else
+      pa_strncpyEx_c16(dF->fInfo.lfn,sF->fInfo.lfn,FATFSLFN_SIZE,&iCur);
+    chksum = fatfs_calc_f83name_checksum(dF->fInfo.name);
+    /* just make sure totContDEntries-1 are free before this 8d3 entry
+     * creating a new file using fopen will take care of this, 
+     * but just to be sure 
+     */
+    pCur=dBuf+dF->fInfo.lDEntryPos;
+    for(iCur=1;iCur<totContDEntries;iCur++)
+    {
+      pCur-=FATDIRENTRY_SIZE;
+      if(*pCur != FATFS_FREEDENTRY)
+      {
+      pa_printstr("ERR:fatuc_move_dentry: freeDentries stolen below my nose\n");
+      iRet = -ERROR_UNKNOWN;
+      goto error_cleanup;
+      }
+    }
+    dF->fInfo.fDEntryPos = pCur-dBuf;
+    lfnBPos = (totContDEntries-1-1)*FATDIRENTRYLFN_PARTIALCHARS;
+    for(iCur=1;iCur<totContDEntries;iCur++)
+    {
+      pa_memset(pCur, 0, FATDIRENTRY_SIZE);
+      ordinal = totContDEntries-iCur;
+      if(iCur == 1)
+        ordinal |= 0x40;
+      buffer_write_uint8_le_noup(pCur, ordinal); /* ordinal */
+      buffer_write_uint16_le_noup(pCur+1,dF->fInfo.lfn[lfnBPos+0]);
+      buffer_write_uint16_le_noup(pCur+3,dF->fInfo.lfn[lfnBPos+1]);
+      buffer_write_uint16_le_noup(pCur+5,dF->fInfo.lfn[lfnBPos+2]);
+      buffer_write_uint16_le_noup(pCur+7,dF->fInfo.lfn[lfnBPos+3]);
+      buffer_write_uint16_le_noup(pCur+9,dF->fInfo.lfn[lfnBPos+4]);
+      buffer_write_uint8_le_noup(pCur+11, FATATTR_LONGNAME);
+      buffer_write_uint8_le_noup(pCur+13, chksum);
+      buffer_write_uint16_le_noup(pCur+14,dF->fInfo.lfn[lfnBPos+5]);
+      buffer_write_uint16_le_noup(pCur+16,dF->fInfo.lfn[lfnBPos+6]);
+      buffer_write_uint16_le_noup(pCur+18,dF->fInfo.lfn[lfnBPos+7]);
+      buffer_write_uint16_le_noup(pCur+20,dF->fInfo.lfn[lfnBPos+8]);
+      buffer_write_uint16_le_noup(pCur+22,dF->fInfo.lfn[lfnBPos+9]);
+      buffer_write_uint16_le_noup(pCur+24,dF->fInfo.lfn[lfnBPos+10]);
+      /* 2bytes cluster */
+      buffer_write_uint16_le_noup(pCur+28,dF->fInfo.lfn[lfnBPos+11]);
+      buffer_write_uint16_le_noup(pCur+30,dF->fInfo.lfn[lfnBPos+12]);
+      pCur+=FATDIRENTRY_SIZE;
+      lfnBPos-=FATDIRENTRYLFN_PARTIALCHARS;
+    }
+  }
 error_cleanup:
   if(fSId >= 0)
     fatuc_fclose(uc,fSId);

@@ -1,6 +1,6 @@
 /*
  * utilsporta.c - portability utility functions
- * v11Mar2005-1257
+ * v17Mar2005-1747
  * C Hanish Menon <hanishkvc>, 28Aug2004
  */
 
@@ -183,6 +183,19 @@ int pa_strnlen(const char *src, int maxlen)
   return iCur;
 }
 
+int pa_strnlen_c16(const char16 *src, int maxlen)
+{
+  int iCur;
+
+  for(iCur = 0; iCur < maxlen; iCur++)
+  {
+    if(*src == (char16)NULL)
+      break;
+    src++;
+  }
+  return iCur;
+}
+
 int pa_strncpyEx(char *dest, char *src, uint32 len, int *iConsumed)
 {
   int iCur;
@@ -190,7 +203,7 @@ int pa_strncpyEx(char *dest, char *src, uint32 len, int *iConsumed)
   for(iCur = 0; iCur < len; iCur++)
   {
     *dest = *src;
-    if(*src != (uint8)NULL)
+    if(*src != (char)NULL)
     {
       dest++; src++;
     }
@@ -207,6 +220,26 @@ int pa_strncpy(char *dest, char *src, uint32 len)
 {
   int iTemp;
   return pa_strncpyEx(dest,src,len,&iTemp);
+}
+
+int pa_strncpyEx_c16(char16 *dest, char16 *src, uint32 len, int *iConsumed)
+{
+  int iCur;
+
+  for(iCur = 0; iCur < len; iCur++)
+  {
+    *dest = *src;
+    if(*src != (char16)NULL)
+    {
+      dest++; src++;
+    }
+    else
+    {
+      *iConsumed = iCur;
+      return 0;
+    }
+  }
+  return -ERR_INSUFFICIENTDEST;
 }
 
 int pa_strncmp(char *dest, char *src, uint32 len)
@@ -247,6 +280,16 @@ int pa_strncmp_c16(char16 *dest, char16 *src, uint32 len)
     dest++; src++;
   }
   return 0;
+}
+
+void pa_toupper(char *str)
+{
+  while(*str)
+  {
+    if((*str >= 'a') && (*str <= 'z'))
+      *str = *str + ('A' -'a');
+    str++;
+  }
 }
 
 unsigned long int pa_strtoul(const char *nptr, char **endptr, int base)
@@ -387,15 +430,34 @@ int pa_bufferTOhexstr(char *dest, int destLen, char *src, int srcLen)
 
 int pa_strc16Tostr_nolen(char *dest, char16 *src)
 {
+  return pa_strc16Tostr_len(dest,src,ERR_MAXINT);
+}
+
+int pa_strc16Tostr_len(char *dest, char16 *src, int destLen)
+{
   int dCur,sCur;
   
-  sCur = 0; dCur = 0;
-  while(1)
+  for(sCur=0,dCur=0;dCur<destLen;)
   {
     dest[dCur++] = (char)(src[sCur]&0xff);
     if(src[sCur++] == (char16)NULL)
       break;
   }
+  dest[dCur-1] = (char)NULL;
+  return 0;
+}
+
+int pa_strTostrc16_len(char16 *dest, char *src, int destLen)
+{
+  int dCur,sCur;
+  
+  for(sCur=0,dCur=0;dCur<destLen;)
+  {
+    dest[dCur++] = (char16)(src[sCur]);
+    if(src[sCur++] == (char)NULL)
+      break;
+  }
+  dest[dCur-1] = (char16)NULL;
   return 0;
 }
 

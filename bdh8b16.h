@@ -1,6 +1,6 @@
 /*
  * bdh8b16.h - library for working with a ide HDD
- * v04Feb2005_1018
+ * v14Mar2005_1448
  * C Hanish Menon, 2004
  * 
  */
@@ -131,6 +131,10 @@
 
 #define BDH8B16_SECCNT_MAX 256
 #define BDH8B16_SECCNT_USE 256
+
+int bdh8b16_get_sectors_single(bdkT *bd, long sec, long count, char *buf);
+int bdh8b16_get_sectors(bdkT *bd, long sec, long count, char *buf);
+int bdh8b16_put_sectors_single(bdkT *bd, long sec, long count, char *buf);
 
 #endif
 

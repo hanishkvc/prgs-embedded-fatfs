@@ -1,6 +1,6 @@
 /*
  * bdh8b16.c - library for working with a ide hdd
- * v07Feb2005_2250
+ * v17Mar2005_1447
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -353,7 +353,7 @@ int bdh8b16_reset(bdkT *bd)
   return ret;
 }
 
-int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
+int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int bdkFlags)
 {
   int iStat,iError,ret;
   uint16 *buf16 = (uint16*)secBuf;
@@ -361,7 +361,7 @@ int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
 #ifdef PRG_MODE_DM270
   if(grpId == BDH8B16_GRPID_DM270IDE_H8B16)
   {
-    ret=bdh8b16_init_grpid_dm270ide_h8b16(bd, grpId, devId);
+    ret=bdh8b16_init_grpid_dm270ide_h8b16(bd, grpId, devId, bdkFlags);
     if(ret != 0) return ret;
   }
   else
@@ -372,7 +372,7 @@ int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
   }
   fprintf(stderr,"INFO:BDH8B16: CMDBR [0x%x] CNTBR [0x%x]\n", bd->CMDBR, bd->CNTBR);
 
-  if(reset)
+  if(bdkFlags & BDK_FLAG_INITRESET)
     bdh8b16_reset(bd);
 
   if((ret=bdh8b16_readyforcmd(bd,devId,BDH8B16_CFG_LBA,0)) != 0) return ret;
@@ -467,12 +467,29 @@ int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
   bd->grpId = grpId; bd->devId = devId;
   bd->secSize = BDK_SECSIZE_512;
   bd->totSecs = 0xFFFFFFFF; /* FIXME */
+  if(bdkFlags & BDK_FLAG_SECSINGLE)
+  {
+    bd->get_sectors = bdh8b16_get_sectors_single;
+    bd->put_sectors = bdh8b16_put_sectors_single;
+  }
   return 0;
 }
 
 #endif /* BDH8B16_BENCHMARK */
 
-int bdh8b16_get_sectors(bdkT *bd, long sec, long count, char*buf)
+int bdh8b16_get_sectors_single(bdkT *bd, long sec, long count, char *buf)
+{
+  int iCur,iRet;
+  for(iCur=0; iCur<count; iCur++)
+  {
+    iRet = bdh8b16_get_sectors(bd,sec+iCur,1,buf);
+    if(iRet != 0) return iRet;
+    buf += bd->secSize;
+  }
+  return iRet;
+}
+
+int bdh8b16_get_sectors(bdkT *bd, long sec, long count, char *buf)
 {
   int iBuf, iStat, iError, ret, iErrRep;
   int iLoops,iCurSecs,iLoop,iSec;
@@ -576,7 +593,13 @@ RepOnError:
   return 0;
 }
 
-int bdh8b16_put_sectors(bdkT *bd, long sec, long count, char*buf)
+int bdh8b16_put_sectors_single(bdkT *bd, long sec, long count, char *buf)
+{
+  pa_printstrErr("WARN:BDH8B16:put:single: not executed, SAFETY FIRST\n");
+  return -ERROR_NOTSUPPORTED;
+}
+
+int bdh8b16_put_sectors(bdkT *bd, long sec, long count, char *buf)
 {
   int iBuf, iStat, iError, ret;
   int iLoops,iCurSecs,iLoop,iSec;

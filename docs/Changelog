@@ -8,6 +8,19 @@ ToDo
   * 1st phase set only the DEV bit
   * 2nd phase also update the LBAAddr bits
 * Have to update the totSecs in bdkT structure from bdhdd.x and bdh8b16.x
+* In fatuc_move_dentry if a directory is being moved to a new location
+  see to it that you update its parent directory entry(..) to correspond
+  wrt the new location where it is.
+
+18Mar2005
+* InBrief
+  * Fixed fatuc_move_dentry such that it takes care of putting LFN
+    if available into dentries of the file.
+    * As part of this fixed a issue with fInfo.[f|l]DEntryPos not 
+      being initialized to actual values during creation of a new
+      file.
+    * Fixed the bug where fInfo.lDEntryPos was being set to one dentry 
+      beyond the actual last dentry of a file in fatfs_getfileinfo
 
 17Mar2005
 * InBrief

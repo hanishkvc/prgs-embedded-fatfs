@@ -1,6 +1,6 @@
 /*
  * bdhdd.c - library for working with a ide hdd
- * v07Feb2005_2200
+ * v17Mar2005_1447
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -314,7 +314,7 @@ int bdhdd_reset(bdkT *bd)
   return ret;
 }
 
-int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
+int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId, int bdkFlags)
 {
   int iStat,iError,ret;
   uint16 *buf16 = (uint16*)secBuf;
@@ -339,12 +339,12 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
 #ifdef PRG_MODE_DM270
   else if(grpId == BDHDD_GRPID_DM270CF_FPMC)
   {
-    ret=bdhdd_init_grpid_dm270cf_fpmc(bd, grpId, devId);
+    ret=bdhdd_init_grpid_dm270cf_fpmc(bd, grpId, devId, bdkFlags);
     if(ret!=0) return ret;
   }
   else if(grpId == BDHDD_GRPID_DM270CF_MEMCARD3PCTLR)
   {
-    ret=bdhdd_init_grpid_dm270cf_MemCARD3PCtlr(bd, grpId, devId);
+    ret=bdhdd_init_grpid_dm270cf_MemCARD3PCtlr(bd, grpId, devId, bdkFlags);
     if(ret!=0) return ret;
   }
 #endif
@@ -355,7 +355,7 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
   }
   printf("INFO:BDHDD: CMDBR [0x%x] CNTBR [0x%x]\n", bd->CMDBR, bd->CNTBR);
 
-  if(reset)
+  if(bdkFlags & BDK_FLAG_INITRESET)
     bdhdd_reset(bd);
 
   if((ret=bdhdd_readyforcmd(bd,devId,BDHDD_CFG_LBA,0)) != 0) return ret;
@@ -446,12 +446,29 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
   bd->grpId = grpId; bd->devId = devId;
   bd->secSize = BDK_SECSIZE_512;
   bd->totSecs = 0xFFFFFFFF; /* FIXME */
+  if(bdkFlags & BDK_FLAG_SECSINGLE)
+  {
+    bd->get_sectors = bdhdd_get_sectors_single;
+    bd->put_sectors = bdhdd_put_sectors_single;
+  }
   return 0;
 }
 
 #endif /* BDHDD_BENCHMARK */
 
-int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
+int bdhdd_get_sectors_single(bdkT *bd, long sec, long count, char *buf)
+{
+  int iCur,iRet;
+  for(iCur=0; iCur<count; iCur++)
+  {
+    iRet = bdhdd_get_sectors(bd,sec+iCur,1,buf);
+    if(iRet != 0) return iRet;
+    buf += bd->secSize;
+  }
+  return iRet;
+}
+
+int bdhdd_get_sectors(bdkT *bd, long sec, long count, char *buf)
 {
   int iBuf, iStat, iError, ret;
   int iLoops,iCurSecs,iLoop,iSec;
@@ -546,7 +563,13 @@ int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
   return 0;
 }
 
-int bdhdd_put_sectors(bdkT *bd, long sec, long count, char*buf)
+int bdhdd_put_sectors_single(bdkT *bd, long sec, long count, char *buf)
+{
+  pa_printstrErr("WARN:BDHDD:put:single: not executed, SAFETY FIRST\n");
+  return -ERROR_NOTSUPPORTED;
+}
+
+int bdhdd_put_sectors(bdkT *bd, long sec, long count, char *buf)
 {
   int iBuf, iStat, iError, ret;
   int iLoops,iCurSecs,iLoop,iSec;

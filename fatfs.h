@@ -8,7 +8,7 @@
 #ifndef _FATFS_H_
 #define _FATFS_H_
 
-#define FATFS_LIBVER "v17Mar2005_2008"
+#define FATFS_LIBVER "v18Mar2005_1448"
 
 #include <rwporta.h>
 #include <bdk.h>
@@ -37,6 +37,8 @@
 
 #define FATFS_BS_STARTBYTE_T0 0xeb
 #define FATFS_BS_STARTBYTE_T1 0xe9
+
+#define FATFS_FREEDENTRY 0xe5
 
 #define FATDIRENTRY_SIZE 32
 #define FATDIRENTRYNAME_SIZE 11

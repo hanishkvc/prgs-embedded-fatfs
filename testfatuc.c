@@ -283,11 +283,12 @@ int testfatuc_mkdir(struct TFatFsUserContext *uc, char *sFile)
   return 0;
 }
 
-int testfatuc_move(struct TFatFsUserContext *uc, char *sFile, char *destPath)
+int testfatuc_move(struct TFatFsUserContext *uc, char *sFile, char *destPath,
+      char16 *u16FName)
 {
 
   printf("testfatuc:INFO: move [%s] to [%s]\n",sFile,destPath);
-  if(fatuc_move_dentry(uc, sFile, destPath, NULL, gDataBuf, gDataBufSize) != 0)
+  if(fatuc_move_dentry(uc,sFile,destPath,u16FName,gDataBuf,gDataBufSize) != 0)
   {
     printf("testfatuc:ERROR:moving: [%s]\n", sFile);
     return -1;

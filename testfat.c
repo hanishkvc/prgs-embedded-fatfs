@@ -5,7 +5,7 @@
  * 
  */
 
-#define TESTFAT_PRGVER "v17Mar2005_2008"
+#define TESTFAT_PRGVER "v18Mar2005_1448"
 #undef NO_REALTIME_SCHED  
 
 #include <sched.h>

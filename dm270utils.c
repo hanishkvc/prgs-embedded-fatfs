@@ -1,6 +1,6 @@
 /*
  * dm270utils.c - library for working on dm270 
- * v07Feb2005_2245
+ * v17Mar2005_1345
  * C Hanish Menon <hanishkvc>, 14july2004
  */
 
@@ -30,6 +30,7 @@
 #include <linuxutils.h>
 #include <dm270utils.h>
 #include <errs.h>
+#include <utilsporta.h>
 
 uint32 gBDH8B16RegionBase;
 
@@ -121,7 +122,7 @@ inline void bdh8b16_outswk_dm270dma(uint32 port, uint16* buf, int count)
 
 #endif
 
-int bdh8b16_init_grpid_dm270ide_h8b16(bdkT *bd, int grpId, int devId)
+int bdh8b16_init_grpid_dm270ide_h8b16(bdkT *bd, int grpId, int devId, int bdkFlags)
 {
   if(grpId == BDH8B16_GRPID_DM270IDE_H8B16)
   {
@@ -160,12 +161,17 @@ int bdh8b16_init_grpid_dm270ide_h8b16(bdkT *bd, int grpId, int devId)
     }
 #endif
 #ifdef BDH8B16_DM270_FASTEMIF
+    if(bdkFlags & BDK_FLAG_BUSSLOW)
+      pa_printstr("INFO:BDH8B16:DM270:IDE BUSSLOW, EMIFCycle untouched\n");
+    else
     {
     uint16 iEmif;
     iEmif = 0x2234;
     fprintf(stderr,"INFO:BDH8B16:DM270:IDE setting EMIFFAST [0x%x]\n", iEmif);
     PA_MEMWRITE16(0x30A0E,iEmif);
     }
+#else
+    pa_printstr("INFO:BDH8B16:DM270:IDE COMPILED BUSSLOW, EMIFCycle untouched\n");
 #endif
     return 0;
   }
@@ -260,7 +266,7 @@ inline void bdhdd_outswk_dm270dma(uint32 port, uint16* buf, int count)
 
 #endif
 
-int bdhdd_init_grpid_dm270cf_fpmc(bdkT *bd, int grpId, int devId)
+int bdhdd_init_grpid_dm270cf_fpmc(bdkT *bd, int grpId, int devId, int bdkFlags)
 {
   if(grpId == BDHDD_GRPID_DM270CF_FPMC)
   {
@@ -277,7 +283,11 @@ int bdhdd_init_grpid_dm270cf_fpmc(bdkT *bd, int grpId, int devId)
     /* BUSWAITMD: Bit1=0,CFRDYisCF; Bit0=1,AccessUsesCFRDY */
     PA_MEMWRITE16(0x30A26,0x1);
 #ifdef BDHDD_DM270_FASTEMIF
-    fprintf(stderr,"INFO:BDHDD:DM270 CF - FastEMIF mode \n");
+    if(bdkFlags & BDK_FLAG_BUSSLOW)
+      pa_printstr("INFO:BDHDD:DM270:CF BUSSLOW, EMIFCycle untouched\n");
+    else
+    {
+    fprintf(stderr,"INFO:BDHDD:DM270:CF - FastEMIF mode \n");
     /**** EMIF CF Cycle time => 0x0c0d 0x0901 0x1110 ****/
     /**** EMIF CF Cycle time => 0x0708 0x0401 0x1110 ****/
     /* CS1CTRL1A: Bit12-8=0xc,ChipEnableWidth; Bit4-0=0xd,CycleWidth */
@@ -287,6 +297,9 @@ int bdhdd_init_grpid_dm270cf_fpmc(bdkT *bd, int grpId, int devId)
     /* CS1CTRL2: Bit13-12=0x1,Idle; Bit11-8=0x1,OutputEnSetup
                  Bit7-4=0x1,WriteEnableSetup; Bit3-0=0,ChipEnSetup */
     PA_MEMWRITE16(0x30A08,0x1110);
+    }
+#else
+    pa_printstr("INFO:BDHDD:DM270:CF COMPILED BUSSLOW, EMIFCycle untouched\n");
 #endif
     /* CFCTRL1: Bit0=0,CFInterfaceActive AND SSMCinactive */
     PA_MEMWRITE16(0x30A1A,0x0);   
@@ -299,7 +312,7 @@ int bdhdd_init_grpid_dm270cf_fpmc(bdkT *bd, int grpId, int devId)
   return -ERROR_INVALID;
 }
 
-int bdhdd_init_grpid_dm270cf_MemCARD3PCtlr(bdkT *bd, int grpId, int devId)
+int bdhdd_init_grpid_dm270cf_MemCARD3PCtlr(bdkT *bd, int grpId, int devId, int bdkFlags)
 {
   if(grpId == BDHDD_GRPID_DM270CF_MEMCARD3PCTLR)
   {
@@ -307,12 +320,16 @@ int bdhdd_init_grpid_dm270cf_MemCARD3PCtlr(bdkT *bd, int grpId, int devId)
     bd->CNTBR = bd->CMDBR + 8;
     if((bd->CMDBR!=BDHDD_DM270CF_CMDBR) || (bd->CNTBR!=BDHDD_DM270CF_CNTBR))
       fprintf(stderr,"INFO:BDHDD:init-DM270 CMDBR and or CNTBR different\n");
-    fprintf(stderr,"INFO:BDHDD:DM270:MemCARD3PCtlr CF - devId [%d] \n",devId);
+    fprintf(stderr,"INFO:BDHDD:DM270:CF_MEMCARD3PCTLR - devId [%d] \n",devId);
 
     /* BUSWAITMD: Bit1=0,CFRDYisCF; Bit0=1,AccessUsesCFRDY */
-    PA_MEMWRITE16(0x30A26,0x1);
+    //PA_MEMWRITE16(0x30A26,0x1); /* MemCARD3PCtlr doesnot work with CFRDY check */
 #ifdef BDHDD_DM270_MEMCARD3PCTLR_FASTEMIF
-    fprintf(stderr,"INFO:BDHDD:DM270 CF - FastEMIF mode \n");
+    if(bdkFlags & BDK_FLAG_BUSSLOW)
+      pa_printstr("INFO:BDHDD:DM270:CF_MEMCARD3PCTLR BUSSLOW, EMIFCycle untouched\n");
+    else
+    {
+    fprintf(stderr,"INFO:BDHDD:DM270:CF_MEMCARD3PCTLR - FastEMIF mode \n");
     /**** EMIF CF Cycle time => 0x1415 0x0901 0x1220 ****/
     /**** EMIF CF Cycle time => 0x0c0d 0x0901 0x1110 ****/
     /**** EMIF CF Cycle time => 0x0708 0x0401 0x1110 ****/
@@ -324,8 +341,11 @@ int bdhdd_init_grpid_dm270cf_MemCARD3PCtlr(bdkT *bd, int grpId, int devId)
     /* CS1CTRL2: Bit13-12=0x1,Idle; Bit11-8=0x1,OutputEnSetup
                  Bit7-4=0x1,WriteEnableSetup; Bit3-0=0,ChipEnSetup */
     PA_MEMWRITE16(0x30A08,0x1331);
-    fprintf(stderr,"INFO:BDHDD:DM270CF - [0x%x:0x%x:0x%x]\n",
+    fprintf(stderr,"INFO:BDHDD:DM270:CF_MEMCARD3PCTLR - [0x%x:0x%x:0x%x]\n",
       PA_MEMREAD16(0x30A04), PA_MEMREAD16(0x30A06), PA_MEMREAD16(0x30A08));
+    }
+#else
+    pa_printstr("INFO:BDHDD:DM270:CF_MEMCARD3PCTLR COMPILED BUSSLOW, EMIFCycle untouched\n");
 #endif
     /* CFCTRL1: Bit0=0,CFInterfaceActive AND SSMCinactive */
     PA_MEMWRITE16(0x30A1A,0x0);   
