@@ -8,7 +8,7 @@
 #ifndef _FATFS_H_
 #define _FATFS_H_
 
-#define FATFS_LIBVER "v17Feb2005_1747"
+#define FATFS_LIBVER "v01Mar2005_1717"
 
 #include <rwporta.h>
 #include <bdk.h>
@@ -129,6 +129,21 @@ struct TFatBuffers
   uint32 FRDBuf[FATROOTDIR_MAXSIZE/4];
 };
 
+struct TClusList
+{
+  uint32 baseClus;
+  uint32 adjClusCnt;
+};
+
+#define FATFS_FREECLUSLIST_SIZE 1024
+
+struct TFatFreeClusters
+{
+  struct TClusList cl[FATFS_FREECLUSLIST_SIZE];
+  int clSize, clIndex;
+  uint32 curMinAdjClusCnt, fromClus;
+};
+
 struct TFat
 {
   bdkT *bd;	
@@ -140,6 +155,7 @@ struct TFat
   uint32 curFatPartStartSecAbs, curFatEndSecAbs;
   uint32 cntDataClus,clusSize;
   int RDUpdated, fatUpdated;
+  struct TFatFreeClusters freeCl;
   /* Functions */
   int (*getfatentry)(struct TFat *fat, uint32 iEntry,
           uint32 *iValue, uint32 *iActual);
@@ -147,12 +163,6 @@ struct TFat
   int (*loadrootdir)(struct TFat *fat);
   int (*storerootdir)(struct TFat *fat);
   int (*checkfatbeginok)(struct TFat *fat);
-};
-
-struct TClusList
-{
-  uint32 baseClus;
-  uint32 adjClusCnt;
 };
 
 struct TFatFile
@@ -202,8 +212,8 @@ int fatfs16_setfatentry(struct TFat *fat, uint32 iEntry, uint32 iValue);
 int fatfs32_getfatentry(struct TFat *fat, uint32 iEntry, 
       uint32 *iValue, uint32 *iActual);
 int fatfs32_setfatentry(struct TFat *fat, uint32 iEntry, uint32 iValue);
-int fatfs_getoptifreecluslist(struct TFat *fat, struct TClusList *cl,
-      int *clSize, uint32 *fromClus);
+int fatfs__getoptifreecluslist(struct TFat *fat, struct TClusList *cl,
+      int *clSize, int minAdjClusCnt, uint32 *fromClus);
 int fatfs_getopticluslist_usefileinfo(struct TFat *fat, 
       struct TFileInfo *fInfo, struct TClusList *cl, int *clSize, 
       uint32 *fromClus);
@@ -214,6 +224,9 @@ int fatfs_loadfileallsec_usefileinfo(struct TFat *fat,
 int fatfs_checkbuf_forloadfileclus(struct TFat *fat, uint32 bufLen);
 int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
       uint8 *buf, uint32 bufLen, uint32 *totalClusRead, uint32 *fromClus);
+int fatfs_update_freecluslist(struct TFat *fat);
+int fatfs_getopti_freecluslist(struct TFat *fat, struct TClusList *cl,
+      int *clSize, int32 clusRequired, uint32 *fromClusHint);
 int fatfs__storefileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
       uint8 *buf, uint32 bytesToWrite, uint32 *totalClusWriten, 
       uint32 *lastClusWriten, uint32 *fromClus);

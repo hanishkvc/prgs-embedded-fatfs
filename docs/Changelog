@@ -7,8 +7,46 @@ ToDo
 * Setting DevLBA register in 2 phase (ATA-2 specs say so)
   * 1st phase set only the DEV bit
   * 2nd phase also update the LBAAddr bits
-* have to update fatfs->getfileinfo so that it doesn't convert the 16bit
-  unicode to 8bit ascii.
+
+01Mar2005
+* InBrief
+  * Completed the caching logic for FreeClusList in TFat
+    Its been implemented to balance between speed/time and space.
+    Also care has been taken that while mounting, it attempts to
+    build this cache only once, that too for large chunks of
+    freeclusters.
+    This should improve the write speeds a lot especially for
+    large FAT32 partitions under FAT_PARTLYMAPPED conditions
+    (with lot of fragmentation in filesystem on top of it OR
+     even with hardly any free clusters at the begining of partiton
+     (which is very possible)) cas previously this would have led to 
+     going thro the fat table trying to find free clusters each time
+     fatfs__storefileclus logic was called.
+  * Added a few comments for existing logics so that the intricacies
+    are quickly recognisable in future if required to modify some things.
+  * fatfs__storefileclus fixed wrt the case when actually the file is 
+    written to disk (with new free clusters used to write data to file
+    or data written till end of file) but it returns ERROR_UNKNOWN.
+    This would have occured rarely (only if no free clusters available 
+    in partition) in the old logic (i.e without freecl cache) But would
+    be triggered always when endoffile is reached while writing to file
+    (or into a new file) with the new freeCl cache based logic. As it
+    returns cl to fatfs__storefileclus such that it contains only so many
+    freeclusters as required currently.
+* WARN: For a given FatUC if one is writing into a newly created file
+  then don't upset FatUC's dirBuffers(or specifically the dirBuffer holding
+  the metadata of this newly created file) by doing any operations like
+  chdir or opening other files in a different directory unless you have 
+  closed or synced the newly created file.
+
+28Feb2005
+* InBrief
+  * Added initial support to maintain a OptimizedFreeClusList in TFat
+  * fatfs__storefileclus uses this Optimized Cluster List
+    thus reducing the scanning of FatTable for free clusters
+    considerably.
+  * Removed the logic to strip library of symbols as a library
+    without symbols cann't be used.
 
 17Feb2005
 * InBrief
@@ -19,6 +57,7 @@ ToDo
     and filecreation support added to fatfs.
   * fatfs->getfileinfo updated to store unicode as unicode 
     for longfilenames.
+  * updated some rwporta routines
 
 16Feb2005
 * InBrief
@@ -761,10 +800,4 @@ InBetween
 * new dirlisting (inefficient(toShowOthersHowItCouldBe)) logic added
 
 
-
-ToDo
-------
-* Remove the forced Unicode to Ascii string conversion in getfileinfo
-  and provide routine to convert given ascii string to unicode, so that
-  we can always maintain unicode string in lfn of TFileInfo.
 

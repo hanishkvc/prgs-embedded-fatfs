@@ -5,7 +5,7 @@
  * 
  */
 
-#define TESTFAT_PRGVER "v17Feb2005_1747"
+#define TESTFAT_PRGVER "v01Mar2005_1717"
 #undef NO_REALTIME_SCHED  
 
 #include <sched.h>
@@ -106,7 +106,7 @@ int testfat_fsfreelist(struct TFatFsUserContext *uc)
   do
   {
     clSize = CLUSLIST_SIZE; 
-    res = fatfs_getoptifreecluslist(uc->fat, cl, &clSize, &fromClus);
+    res = fatfs__getoptifreecluslist(uc->fat, cl, &clSize, 0, &fromClus);
     for(iCur=0; iCur < clSize; iCur++)
     {
       totalClus += cl[iCur].adjClusCnt+1;

@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v17Feb2005_1737
+ * v01Mar2005_1717
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -75,7 +75,13 @@ int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
   if(res != 0) return res;
   if((res=fat->checkfatbeginok(fat)) != 0) return res;
   res = fat->loadrootdir(fat);
-  return res;
+  if(res != 0) return res;
+  fat->freeCl.clSize = -1; fat->freeCl.fromClus = 0;
+  fat->freeCl.curMinAdjClusCnt = fat->cntDataClus;
+  /* Even if this fails its ok as its required only if WRITE is used 
+   * And Write will handle it appropriatly */
+  fatfs_update_freecluslist(fat);
+  return 0;
 }
 
 int fatfs16_checkfatbeginok(struct TFat *fat)
@@ -788,8 +794,8 @@ int fatfs32_setfatentry(struct TFat *fat, uint32 iEntry, uint32 iValue)
   return 0;
 }
 
-int fatfs_getoptifreecluslist(struct TFat *fat, struct TClusList *cl,
-      int *clSize, uint32 *fromClus)
+int fatfs__getoptifreecluslist(struct TFat *fat, struct TClusList *cl,
+      int *clSize, int minAdjClusCnt, uint32 *fromClus)
 {
   int iCL = -1;
   uint32 iCurClus, iPrevClus;
@@ -803,7 +809,7 @@ int fatfs_getoptifreecluslist(struct TFat *fat, struct TClusList *cl,
   if(*fromClus < 2)
     *fromClus = 2;
   iPrevClus=0;
-  for(iCurClus=*fromClus;iCurClus<fat->cntDataClus;iCurClus++) /* FIXMAYBE:cnt+2 */
+  for(iCurClus=*fromClus;iCurClus<fat->cntDataClus;iCurClus++) /* FIXMAYBE:cntDataClus+2 */
   {
     uint32 iValue,iActualVal;
     iRet=fat->getfatentry(fat,iCurClus,&iValue,&iActualVal);
@@ -820,16 +826,19 @@ int fatfs_getoptifreecluslist(struct TFat *fat, struct TClusList *cl,
       }
       else
       {
-        iCL++;
-        if(iCL >= *clSize) 
-        {
-          /* we have used up all the cl so 
-           * call once again with updated *fromClus
-           */
-          *fromClus = iCurClus;
-          *clSize = iCL;
-          return -ERROR_TRYAGAIN;
-        }
+	if(cl[iCL].adjClusCnt >= minAdjClusCnt)
+	{
+          iCL++;
+          if(iCL >= *clSize) 
+          {
+            /* we have used up all the cl so 
+             * call once again with updated *fromClus
+             */
+            *fromClus = iCurClus;
+            *clSize = iCL;
+            return -ERROR_TRYAGAIN;
+          }
+	}
         cl[iCL].baseClus = iCurClus;
         cl[iCL].adjClusCnt = 0;
         iPrevClus = iCurClus;
@@ -1148,8 +1157,77 @@ int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
            &lastClusRead, fromClus);
 }
 
+int fatfs_update_freecluslist(struct TFat *fat)
+{
+  int resOCL;
+
+  if((fat->freeCl.clSize == -1) && (fat->freeCl.fromClus == 0))
+  {
+    if(fat->freeCl.curMinAdjClusCnt == 0)
+      return -ERROR_NOMORE;
+    fat->freeCl.curMinAdjClusCnt >>= 3; /* divBy 8 */
+  }
+  fat->freeCl.clIndex = 0;
+  fat->freeCl.clSize = FATFS_FREECLUSLIST_SIZE; 
+  resOCL = fatfs__getoptifreecluslist(fat, fat->freeCl.cl, &fat->freeCl.clSize, fat->freeCl.curMinAdjClusCnt, &fat->freeCl.fromClus);
+  if((resOCL != 0) && (resOCL != -ERROR_TRYAGAIN))
+  {
+    fat->freeCl.clSize = -1;
+    if(resOCL == -ERROR_NOMORE)
+    {
+      fat->freeCl.fromClus = 0;
+      resOCL = -ERROR_TRYAGAIN;
+    }
+  }
+  return resOCL;
+}
+
+int fatfs_getopti_freecluslist(struct TFat *fat, struct TClusList *cl,
+      int *clSize, int32 clusRequired, uint32 *fromClusHint)
+{
+  int oCur, res;
+  int32 clusGot;
+  
+  oCur = 0;
+  do
+  {
+    if(fat->freeCl.clSize == -1)
+    {
+      res = fatfs_update_freecluslist(fat);
+      if((res != 0) && (res != -ERROR_TRYAGAIN))
+        return res;
+    }
+    for(;(fat->freeCl.clIndex<fat->freeCl.clSize) && (clusRequired>0); oCur++)
+    {
+      if(oCur >= *clSize)
+        return -ERROR_TRYAGAIN;
+      cl[oCur].baseClus = fat->freeCl.cl[fat->freeCl.clIndex].baseClus;
+      clusRequired -= (fat->freeCl.cl[fat->freeCl.clIndex].adjClusCnt+1);
+      if(clusRequired >= 0)
+      {
+        clusGot = fat->freeCl.cl[fat->freeCl.clIndex].adjClusCnt+1;
+	/* Note: Even thou current freeCl.cl content is used up 
+	 * its not directly reflected by making its adjClusCnt 0 (or rather -1)
+	 * cas clIndex is updated to skip this used up entry in cl */
+        fat->freeCl.clIndex++;
+      }
+      else
+      {
+        clusGot = (fat->freeCl.cl[fat->freeCl.clIndex].adjClusCnt+1)+clusRequired;
+	fat->freeCl.cl[fat->freeCl.clIndex].baseClus += clusGot;
+	fat->freeCl.cl[fat->freeCl.clIndex].adjClusCnt -= clusGot;
+      }
+      cl[oCur].adjClusCnt = clusGot-1;
+    }
+    if(fat->freeCl.clIndex >= fat->freeCl.clSize)
+      fat->freeCl.clSize = -1;
+  }while(clusRequired > 0);
+  *clSize = oCur;
+  return 0;
+}
+
 #undef FATFS__STOREFILECLUS_SAFE  
-#define FATFS_WRITENEW_MINADJCLUSCNT 16
+#define FATFS_WRITENEW_MINADJCLUSCNT 0
 #define FATFS__STOREFILECLUS_FROMCLUS_ALLOC FATFS_EOF
 
 int fatfs__storefileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
@@ -1178,7 +1256,10 @@ int fatfs__storefileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
     *lastClusWriten = 0;
 #endif  
   totalPosClus2Write = (bytesToWrite+fat->clusSize-1)/fat->clusSize;
-  /* NOTE: if FROMCLUS_ALLOC is defined as 0, then remove this goto */
+  /* NOTE: if FROMCLUS_ALLOC is defined as 0, then remove this goto.
+   * Also fatfs_getopticluslist_usefileinfo will have to be updated
+   * such that if 0 is passed thro fromClus then it shouldn't try to 
+   * go to the begining of file */
   if(*fromClus == FATFS__STOREFILECLUS_FROMCLUS_ALLOC)
     goto fatfs__storefileclus_fromclus_alloc;
   do
@@ -1229,11 +1310,14 @@ int fatfs__storefileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
     fInfo->newFileSize = *totalClusWriten*fat->clusSize;
   fInfo->updated |= FINFO_UPDATED_SIZE;
 fatfs__storefileclus_fromclus_alloc:  
-  *fromClus = 0; // One place for optimising write speed 
+  // As getopti_freecluslist ignores fromClus hint passed to it, its OK 
+  // Otherwise it may be better to assign this to lastClusWriten, if 
+  // one wants files to grow towards the end of partition as far as possible
+  *fromClus = 0; 
   do
   {
     clSize = 16; 
-    resOCL = fatfs_getoptifreecluslist(fat, cl, &clSize, fromClus);
+    resOCL = fatfs_getopti_freecluslist(fat, cl, &clSize, totalPosClus2Write, fromClus);
     if((resOCL != 0) && (resOCL != -ERROR_TRYAGAIN))
       break;
     for(iCur=0; ((iCur<clSize) && !bAllWriten); iCur++)
@@ -1282,6 +1366,11 @@ fatfs__storefileclus_fromclus_alloc:
     return -ERROR_UNKNOWN;
   if(resOCL != 0)
     return resOCL;
+  if(totalPosClus2Write == 0)
+  {
+    *fromClus = FATFS__STOREFILECLUS_FROMCLUS_ALLOC;
+    return 0;
+  }
   return -ERROR_UNKNOWN;
 }
 

@@ -1,5 +1,6 @@
 CC=$(CROSS)gcc
 AR=$(CROSS)ar
+STRIP=$(CROSS)strip
 CFLAGS = -Wall -O2 -I .
 CFLAGS = -Wall -g -I .
 C_FLAGS=
@@ -70,6 +71,7 @@ release: libfatfs
 	cp testfat*.* $(RELEASEPATH)/src
 	cp MakefileUser $(RELEASEPATH)/src/Makefile
 	cp $(LIBFATFSS) $(RELEASEPATH)/lib
+#	$(STRIP) $(RELEASEPATH)/lib/*
 
 install:
 	mv $(TESTFATS) $($(CROSS)INSTALLPATH)/
