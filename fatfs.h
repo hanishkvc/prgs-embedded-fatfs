@@ -1,6 +1,6 @@
 /*
  * fatfs.h - library for working with fat filesystem
- * v21july2004
+ * v30Sep2004_2300
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -9,6 +9,7 @@
 #define _FATFS_H_
 
 #include <rwporta.h>
+#include <bdk.h>
 
 #ifndef DEBUG_PRINT_FATFS
 #define DEBUG_PRINT_FATFS 11
@@ -99,6 +100,7 @@ struct TFatBuffers
 
 struct TFat
 {
+  bdkT *bd;	
   uint32 baseSec;
   uint8 *BBuf, *FBuf, *RDBuf;
   uint32 rdSize;
@@ -128,7 +130,8 @@ struct TFatFsUserContext
 
 extern struct TFat gFat;
 
-int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs, int baseSec);
+int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs, 
+      bdkT *bd, int baseSec);
 int fatfs_loadbootsector(struct TFat *fat);
 int fatfs_loadfat(struct TFat *fat);
 int fatfs16_loadrootdir(struct TFat *fat);

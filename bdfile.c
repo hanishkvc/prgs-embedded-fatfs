@@ -1,6 +1,6 @@
 /*
  * bdfile.c - library for working with a linux loop based filesystem file
- * v16july2004
+ * v30Sep2004_2230
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -15,13 +15,12 @@
 #include <inall.h>
 #include <bdfile.h>
 #include <errs.h>
+#include <utilsporta.h>
 
-static int gFID;
-
-int bd_init()
+int bdf_init(bdkT *bd)
 {
-  gFID = open(BDFILE, O_RDONLY);
-  if(gFID == -1)
+  bd->u1 = (void*)open(BDFILE, O_RDONLY);
+  if((int)bd->u1 == -1)
   {
     perror("BDFILE: Opening file");
     exit(10);
@@ -29,7 +28,7 @@ int bd_init()
   return 0;
 }
 
-int bd_get_sectors(long sec, long count, char*buf)
+int bdf_get_sectors(bdkT *bd, long sec, long count, char*buf)
 {
   int res, toRead;
 
@@ -37,17 +36,17 @@ int bd_get_sectors(long sec, long count, char*buf)
   printf("INFO:bdfile: sec[%ld] count[%ld]\n", sec, count);
 #endif
 
-  res = lseek(gFID, sec*BDSECSIZE, SEEK_SET);
+  res = lseek((int)bd->u1, sec*bd->secSize, SEEK_SET);
   if(res == -1)
   {
     perror("BDFILE: lseeking file");
     return -ERROR_UNKNOWN;
   }
-  toRead = count*BDSECSIZE;
+  toRead = count*bd->secSize;
 
   while(1)
   {
-    res = read(gFID, buf, toRead);
+    res = read((int)bd->u1, buf, toRead);
     if(res == -1)
     {
       perror("BDFILE: reading file");
@@ -67,9 +66,19 @@ int bd_get_sectors(long sec, long count, char*buf)
   return 0;
 }
 
-int bd_cleanup()
+int bdf_cleanup(bdkT *bd)
 {
-  close(gFID);
+  close((int)bd->u1);
+  return 0;
+}
+
+int bdfile_setup()
+{
+  bdkBDFile.init = bdf_init;
+  bdkBDFile.cleanup = bdf_cleanup;
+  bdkBDFile.get_sectors = bdf_get_sectors;
+  bdkBDFile.secSize = BDK_SECSIZE;
+  pa_strncpy(bdkBDFile.name,"bdfile",BDK_DEVNAMELEN);
   return 0;
 }
 

@@ -1,6 +1,6 @@
 /*
  * bdfile.h - library for working with a linux loop based filesystem file
- * v14july2004
+ * v30Sep2004_2230
  * C Hanish Menon, 2004
  * 
  */
@@ -8,12 +8,12 @@
 #ifndef _BDFILE_H_
 #define _BDFILE_H_
 
-#define BDFILE "bd.bd"
-#define BDSECSIZE 512
+#include <bdk.h>
+#define BDFILE "bdf.bd"
 
-int bd_init();
-int bd_get_sectors(long sec, long count, char*buf);
-int bd_cleanup();
+bdkT bdkBDFile;
+
+int bdfile_setup();
 
 #endif
 

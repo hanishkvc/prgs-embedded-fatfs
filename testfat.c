@@ -1,6 +1,6 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v17july2004-2130
+ * v30Sep2004_2300
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -11,13 +11,13 @@
 #include <errs.h>
 #include <bdfile.h>
 #include <fatfs.h>
-#include <part.h>
+#include <partk.h>
 
 struct TFat fat1;
 struct TFatBuffers fat1Buffers;
 struct TFatFsUserContext gUC;
 struct TFileInfo fInfo;
-struct TPartInfo pInfo;
+pikT pInfo;
 #define DATABUF_SIZE (FATFSCLUS_MAXSIZE*10)
 uint8 dataBuf[DATABUF_SIZE], sBuf1[8*1024], sBuf2[8*1024], cCur;
 struct timeval tv1, tv2;
@@ -179,20 +179,21 @@ int main(int argc, char **argv)
 
   /*** initialization ***/
   testfat_starttime();
-  bd_init();
+  bdfile_setup();
+  bdkBDFile.init(&bdkBDFile);
   if((argc > 1) && (argv[1][0] == 'y'))
   {
     printf("************* partition loading ******************\n");
-    if(part_get(&pInfo) != 0)
+    if(partk_get(&pInfo,&bdkBDFile) != 0)
       exit(1);
     baseSec = pInfo.fLSec[0];
   }
   else
     baseSec = 0;
   
-  if(fatfs_init(&fat1, &fat1Buffers, baseSec)!= 0)
+  if(fatfs_init(&fat1, &fat1Buffers, &bdkBDFile, baseSec)!= 0)
   {
-    bd_cleanup();
+    bdkBDFile.cleanup(&bdkBDFile);
     return -1;
   }
   fatuc_init(&gUC, &fat1);
@@ -250,7 +251,7 @@ int main(int argc, char **argv)
 
   /*** cleanup ***/
   fatfs_cleanup(&fat1);
-  bd_cleanup();
+  bdkBDFile.cleanup(&bdkBDFile);
   return 0; 
 }
 

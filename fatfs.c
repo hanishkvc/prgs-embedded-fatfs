@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v21july2004-2200
+ * v30Sep2004-2300
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -11,15 +11,16 @@
 #include <stdio.h>
 
 #include <inall.h>
-#include <bdfile.h>
 #include <fatfs.h>
 #include <errs.h>
 
 
-int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs, int baseSec)
+int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
+      bdkT *bd, int baseSec)
 {
   int res;
 
+  fat->bd = bd;
   fat->baseSec = baseSec;
   fat->BBuf = (uint8*)&(fBufs->FBBuf);
   fat->FBuf = (uint8*)&(fBufs->FFBuf);
@@ -47,7 +48,7 @@ int fatfs_loadbootsector(struct TFat *fat)
   uint8 tBuf[32];
 #endif
 
-  res=bd_get_sectors(fat->baseSec, 1, fat->BBuf);
+  res=fat->bd->get_sectors(fat->bd,fat->baseSec,1,fat->BBuf);
   if(res != 0) return res;
   /* validate the FAT boot sector */
   pCur = fat->BBuf+510;
@@ -154,7 +155,8 @@ int fatfs_loadbootsector(struct TFat *fat)
 
 int fatfs_loadfat(struct TFat *fat)
 {
-  return bd_get_sectors(fat->baseSec+fat->bs.rsvdSecCnt, fat->bs.fatSz, fat->FBuf); 
+  return fat->bd->get_sectors(fat->bd,fat->baseSec+fat->bs.rsvdSecCnt,
+           fat->bs.fatSz,fat->FBuf); 
 }
  
 int fatfs16_loadrootdir(struct TFat *fat)
@@ -174,8 +176,8 @@ int fatfs16_loadrootdir(struct TFat *fat)
     return -ERROR_INSUFFICIENTRESOURCE;
   }
   fat->rdSize = rootDirSecs*fat->bs.bytPerSec;
-  return bd_get_sectors(fat->baseSec+firstRootDirSecNum, 
-    rootDirSecs, fat->RDBuf); 
+  return fat->bd->get_sectors(fat->bd,fat->baseSec+firstRootDirSecNum, 
+    rootDirSecs,fat->RDBuf); 
 }
 
 int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
@@ -392,7 +394,8 @@ int fatfs_loadfileallsec_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
         printf("DEBUGERROR:3:fatfs:load: buffer space less by < a clus\n");
         return -ERROR_INSUFFICIENTRESOURCE;
       }
-      resGS=bd_get_sectors(fat->baseSec+fatfs_firstsecofclus(fat,cl[iCur].baseClus),noSecs,buf);
+      resGS=fat->bd->get_sectors(fat->bd,
+        fat->baseSec+fatfs_firstsecofclus(fat,cl[iCur].baseClus),noSecs,buf);
       if(resGS != 0)
       {
         printf("DEBUG:fatfs:load: bd_get_sectors\n");
@@ -457,7 +460,7 @@ int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
       *totalClusRead += noClus2Read;
       noSecs = noClus2Read*fat->bs.secPerClus;
       bytesRead = noSecs*fat->bs.bytPerSec;
-      resGS=bd_get_sectors(fat->baseSec+
+      resGS=fat->bd->get_sectors(fat->bd,fat->baseSec+
         fatfs_firstsecofclus(fat,cl[iCur].baseClus),noSecs,buf);
       if(resGS != 0)
       {
