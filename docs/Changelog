@@ -7,6 +7,33 @@ ToDo
 * Setting DevLBA register in 2 phase (ATA-2 specs say so)
   * 1st phase set only the DEV bit
   * 2nd phase also update the LBAAddr bits
+* Have to update the totSecs in bdkT structure from bdhdd.x and bdh8b16.x
+
+17Mar2005
+* InBrief
+  * Updated all logic related to block devices (bdkT) such that they
+    accept a generic bdkFlags during initialization, instead of the
+    specific reset flag. Through this bdkFlags one can specific as
+    of now 
+    (1) reset during initialization 
+    (2) keeping device bus slow
+    (3) doing read of block device one sector at a time.(as of now
+        write using, single sector at a time, is not supported as user
+        will be forced to use this BDK_FLAG_SECSINGLE only if blockdevice
+        is not behaving properly)
+    * Also updated testfat to query for these 2 new flags before running
+  * Configured h/w to avoid checking of CFREADY during access of MemCARD3PCtlr 
+    chip connected thro CF. Because MemCARD3PCtlr goofs up when CFREADY check
+    is enabled.
+  * Added logic to take care of situation when fatuc_move_dentry is 
+    provided with u16Name. 
+    * As part of this a proper 8.3 name is derived and stored in UPPERCASE
+      as required by fat.
+  * Also made fatuc__getfileinfo more foolproof by checking if path of
+    the file being checked is ".\" and if so automatically use current 
+    directory as "." corresponds to current directory. (Otherwise, both
+    the dir buffers would have pointed to current directory and thus
+    goofed up things)
 
 11Mar2005
 * InBrief
@@ -644,7 +671,9 @@ InBetween
 18Oct2004
 * Added support for set features, but disabled by default
   Not much use on PC as the ioport access in the PC architecture
-  is limiting the speed achieved to somewhere between PIO0 and PIO1
+  is limiting the speed achieved to somewhere between PIO0 and PIO1.
+  This PC HDD access speed can be improved a LOT, BUT would require
+  motherboard chipset specific setting of bus cycles for IDE.
 * Reduced the time the bdhdd.x waits after issuing a command
   before checking for BSY bit and other bits to around 500ns
   The spec talks about 400ns. But just in case
@@ -742,6 +771,8 @@ InBetween
 
 07Oct2004
 * Started preliminary support for PC based HDD (bdhdd.x)
+  This is a rewrite of my older libata library and uses LBA
+  mode for access compared to CHS based access of libata.
 
 05Oct2004
 * Added function pointers to TFat structure so that during fatfs_init
@@ -781,7 +812,7 @@ InBetween
   require s/w support in OS.
 * Partition logic identifies if it has a MBR at hand
   Also it uses a buffer passed to it to read the 0th sector into.
-* mount and umount added
+* explicit mount and umount logic functions added
 
 30Sep2004
 * Incorporated new porta libraries into fatfs

@@ -1,11 +1,11 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v29Jan2005_2205
+ * v17Mar2005_1448
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
-#define TESTFAT_PRGVER "v11Mar2005_2158"
+#define TESTFAT_PRGVER "v17Mar2005_2008"
 #undef NO_REALTIME_SCHED  
 
 #include <sched.h>
@@ -35,6 +35,7 @@ struct TFileInfo fInfo;
 #define DATABUF_MAXSIZE (FATFSCLUS_MAXSIZE*64)
 uint32 dataBuf[DATABUF_MAXSIZE/4];
 uint8 sBuf1[8*1024], sBuf2[8*1024], cCur, *gDataBuf;
+uint8 t8LFN[256]; uint16 t16LFN[256];
 struct timeval gTFtv1, gTFtv2;
 int32 timeInUSECS;
 void *pArg[8];
@@ -325,7 +326,7 @@ int testfat_fatfsfile_checksum(struct TFatFsUserContext *uc, char *sFile)
 
 int main(int argc, char **argv)
 {
-  int iCur, bExit, grpId, devId, partNo, forceMbr, forceReset, iNumSecsUsed;
+  int iCur, bExit, grpId, devId, partNo, forceMbr, bdkFlags=0, iNumSecsUsed;
   bdkT *bdk;
   char *pChar;
   uint32 fileSize;
@@ -364,14 +365,37 @@ int main(int argc, char **argv)
     bdk = &bdkH8b16;
   else
     bdk = &bdkBDFile;
+  if(bdk != &bdkBDFile)
+  {
+    pa_printstr("QUERY:testfat: Force BUSSLOW [y/n]:");
+    scanf("%s",sCur); fgetc(stdin);
+    if(sCur[0] == 'y')
+    {
+      bdkFlags |= BDK_FLAG_BUSSLOW;
+    }
+    else
+    {
+      bdkFlags &= ~BDK_FLAG_BUSSLOW;
+    }
+    pa_printstr("QUERY:testfat: Force SECSINGLE [y/n]:");
+    scanf("%s",sCur); fgetc(stdin);
+    if(sCur[0] == 'y')
+    {
+      bdkFlags |= BDK_FLAG_SECSINGLE;
+    }
+    else
+    {
+      bdkFlags &= ~BDK_FLAG_SECSINGLE;
+    }
+  }
   grpId = strtoul(argv[2],&pChar,0);
   devId = strtoul(&pChar[1],&pChar,0);
   partNo = strtoul(&pChar[1],NULL,0);
   
   if(argv[3][0] == 'r')
-    forceReset = 1;
+    bdkFlags |= BDK_FLAG_INITRESET;
   else
-    forceReset = 0;
+    bdkFlags &= ~BDK_FLAG_INITRESET;
   if(argv[4][0] == 'f')
     forceMbr = 1;
   else
@@ -387,7 +411,7 @@ int main(int argc, char **argv)
     fprintf(stderr,"INFO:testfat: DataBufSize set to [%ld]\n", gDataBufSize);
 
   if(fsutils_mount(bdk,grpId,devId,partNo,&fat1,&fat1Buffers,
-      forceMbr,forceReset) != 0)
+      forceMbr,bdkFlags) != 0)
   {
     fprintf(stderr,"ERR:testfat: mount failed\n");
     exit(20);
@@ -616,11 +640,15 @@ int main(int argc, char **argv)
     }
     if(strcmp("move",sCur) == 0)
     {
-      printf("enter src file/dir and destPath:");
-      scanf("%s %s", sBuf1, sBuf2);
+      printf("enter src file/dir and destPath and name:");
+      scanf("%s %s %s", sBuf1, sBuf2, t8LFN);
+      pa_strTostrc16_len(t16LFN,t8LFN,256);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
-      testfatuc_move(&gUC, sBuf1, sBuf2);
+      if(pa_strncmp(t8LFN,"NULL",4)==0)
+        testfatuc_move(&gUC, sBuf1, sBuf2, NULL);
+      else
+        testfatuc_move(&gUC, sBuf1, sBuf2, t16LFN);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"move");
     }
     if(strcmp("exit",sCur) == 0)

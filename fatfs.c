@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v11Mar2005_2158
+ * v17Mar2005_2008
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -1648,7 +1648,8 @@ int fatuc__getfileinfo(struct TFatFsUserContext *uc, char *cFile,
     return res;
   }
   
-  if(uc->pName[0] == 0)
+  if( (uc->pName[0] == 0) 
+        || ((uc->pName[0]=='.')&&(uc->pName[1]=='\\')) )
   {
     pa_memcpy(dInfo,&uc->curDirInfo,sizeof(struct TFileInfo));
     *stagePassed = FATUC__GETFILEINFO_STAGEPASSED_DINFOCURDIR;
@@ -1687,7 +1688,7 @@ int fatfs__allocatedentry_indirbuf(uint8 *dirBuf, uint32 dirBufLen, int totContE
   uint32 prevPos=0;
   uint8 *freeDEntry, *pCur;
   int iRet, iCur;
-  uint8 chksum, ordinal;
+  uint8 chksum;
   
   iRet = fatfs_getfreedentry_indirbuf(dirBuf, dirBufLen, totContEntries, &freeDEntry, &prevPos); 
   if(iRet != 0) return iRet;
@@ -1699,12 +1700,15 @@ int fatfs__allocatedentry_indirbuf(uint8 *dirBuf, uint32 dirBufLen, int totContE
 #if 1
     buffer_write_uint8_le_noup(pCur, 0xe5);
 #else
+    {
+    uint8 ordinal;
     ordinal = totContEntries-iCur;
     if(iCur == 1)
       ordinal |= 0x40;
     buffer_write_uint8_le_noup(pCur, ordinal); /* ordinal */
     buffer_write_uint8_le_noup(pCur+11, FATATTR_LONGNAME);
     buffer_write_uint8_le_noup(pCur+13, chksum);
+    }
 #endif
     pCur+=FATDIRENTRY_SIZE;
   }
@@ -2101,18 +2105,61 @@ int fatuc__deletefile(struct TFatFsUserContext *uc, int fId)
   return fatuc__remove_dentry(uc,fId);
 }
 
+int util_prep8d3_fromLFN(char *s8d3Name, char16 *s16LFN, 
+      int s8d3Len, int *tildePos)
+{
+  int iCur,iTemp;
+  
+  *tildePos = 0;
+  pa_strc16Tostr_len(s8d3Name,s16LFN,s8d3Len);
+  pa_toupper(s8d3Name);
+  for(iCur=0;iCur<9;iCur++)
+  {
+    if(s8d3Name[iCur] == (char)NULL)
+      return 0;
+    if(s8d3Name[iCur] == '.')
+      return 0;
+  }
+  *tildePos = 6;
+  s8d3Name[6] = '~'; s8d3Name[7] = '1';
+  for(iCur=0;iCur<255;iCur++)
+  {
+    if((s16LFN[iCur]==(char16)NULL) || (s16LFN[iCur]==(char16)'.'))
+      break;
+  }
+  if((iCur==255) || (s16LFN[iCur]==(char16)NULL))
+  {
+    s8d3Name[8] = (char)NULL;
+    return 0;
+  }
+  s8d3Name[8] = '.';
+  for(iTemp=9,iCur++;(iTemp<12)&&(iCur<255);iCur++,iTemp++)
+    s8d3Name[iTemp] = (char)(s16LFN[iCur]&0xff);
+  pa_toupper(s8d3Name);
+  return 0;
+}
+
+#define FATFS8d3NAME_SIZE (FATFSNAME_SIZE+1)
+
 int fatuc_move_dentry(struct TFatFsUserContext *uc, char *src, 
       char* destPath, char16* u16FName, char* tBuf, int tBufLen)
 {
   int totContDEntries = 0;
   struct TFatFile *sF, *dF;
   int iRet, fSId=-1, fDId=-1, destMaxLen, iPos;
+  int tildePos, iNameCnt;
+  char s83FName[FATFS8d3NAME_SIZE];
 
   iRet = fatuc_fopen(uc,src,&fSId,0);
   if(iRet != 0) return iRet;
   sF=&uc->files[fSId];
   if(u16FName == NULL)
     totContDEntries = ((sF->fInfo.lDEntryPos - sF->fInfo.fDEntryPos)/FATDIRENTRY_SIZE)+1;
+  else
+  {
+    totContDEntries = (pa_strnlen_c16(u16FName,FATDIRENTRYLFN_SIZE)/FATDIRENTRYLFN_PARTIALCHARS) + 1;
+    util_prep8d3_fromLFN(s83FName,u16FName,FATFS8d3NAME_SIZE,&tildePos);
+  }
   iRet = fatuc__remove_dentry(uc,fSId);
   if(iRet != 0) goto error_cleanup;
 
@@ -2123,9 +2170,12 @@ int fatuc_move_dentry(struct TFatFsUserContext *uc, char *src,
     iRet = -ERROR_INSUFFICIENTRESOURCE;
     goto error_cleanup;
   }
-  iRet = util_extractfilefrompath(src, uc->pName, FATFSPATHNAME_MAXSIZE, 
-           uc->fName, FATFSLFN_SIZE);
-  if(iRet != 0) goto error_cleanup;
+  if(u16FName == NULL)
+  {
+    iRet = util_extractfilefrompath(src, tBuf, FATFSPATHNAME_MAXSIZE, 
+             s83FName, FATFS8d3NAME_SIZE);
+    if(iRet != 0) goto error_cleanup;
+  }
   destMaxLen = FATFSPATHNAME_MAXSIZE-FATFSLFN_SIZE;
   iRet = pa_strncpyEx(tBuf,destPath,destMaxLen,&iPos);
   if(iRet != 0) goto error_cleanup;
@@ -2135,21 +2185,30 @@ int fatuc_move_dentry(struct TFatFsUserContext *uc, char *src,
     iPos++;
     tBuf[iPos] = (char)NULL;
   }
-  iRet = pa_strncpy(&tBuf[iPos],uc->fName,FATFSLFN_SIZE);
+  if(tildePos != 0)
+    tildePos += iPos;
+  iRet = pa_strncpy(&tBuf[iPos],s83FName,FATFSLFN_SIZE);
   if(iRet != 0) goto error_cleanup;
-
+  iNameCnt=1;
+NextName:
   iRet = fatuc__fopen(uc,tBuf,&fDId,FATUC_FOPEN_CREATE,totContDEntries);
   if(iRet != 0) goto error_cleanup;
   dF=&uc->files[fDId];
   if(dF->fInfo.firstClus != 0)
   {
+    if((iNameCnt>9) || (tildePos==0))
+    {
     pa_printstr("ERR:fatuc_move_dentry: destPath already contains the file\n");
     iRet = -ERROR_INVALID;
     goto error_cleanup;
+    }
+    fatuc_fclose(uc,fDId); fDId = -1;
+    iNameCnt++;
+    tBuf[tildePos+1] = (char)((int)'0'+iNameCnt);
+    goto NextName;
   }
   dF->fInfo.attr = sF->fInfo.attr;
   dF->fInfo.firstClus = sF->fInfo.firstClus;
-  //dF->fInfo.fileSize = sF->fInfo.fileSize; /* newFileSize will do */
   dF->fInfo.newFileSize = sF->fInfo.fileSize;
   /* FIXME: LFN name to be handled */
   
