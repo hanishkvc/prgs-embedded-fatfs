@@ -1,0 +1,13 @@
+Changelog - fatfs
+C Hanish Menon <hanishkvc>
+---------------------------
+
+20july2004-2300 (what I remember now)
+* Added support for reading files with clusSize granularity.
+
+21july2004-2200 (what I remember now)
+* Updated the logic such that they no longer use global structures instead 
+  * all fatfs calls use a TFat structure which inturn gets its buffers
+    set from a TFatBuffers structure defined by user.
+  * and all fatuc calls use the TFatFsUserContext structure which inturn
+    as a pointer to the TFat it is using.

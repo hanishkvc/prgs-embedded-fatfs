@@ -1,7 +1,7 @@
 /*
  * fatfs.h - library for working with fat filesystem
- * v14july2004
- * C Hanish Menon, 2004
+ * v21july2004
+ * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
@@ -25,6 +25,7 @@
 #define FATDIRENTRYLFN_PARTIALCHARS 13
 #define FATFSPATHNAME_MAXSIZE (10*FATFSLFN_SIZE)
 
+#define FATFSCLUS_MAXSIZE (64*1024)
 #define FATFSUSERCONTEXTDIRBUF_MAXSIZE (2048*FATDIRENTRY_SIZE)
 #define FATFS_DIRSEP '\\'
 
@@ -62,12 +63,12 @@
 #define BS_32VolLab_sz11(base) (unsigned char*)((long)base+71)
 #define BS_32FilSysType_sz8(base) (unsigned char*)((long)base+82)
 
-#define fatfs_firstsecofclus(N) (((N-2)*gFB.secPerClus)+gFB.firstDataSec)
+#define fatfs_firstsecofclus(fat, N) (((N-2)*fat->bs.secPerClus)+fat->bs.firstDataSec)
 /* assumes FAT is a uint8 array */
 #define FAT16Offset(N) (N*2)
 #define FAT32Offset(N) (N*4) 
-#define FATFS16_FatEntryInSec(N) (gFB.rsvdSecCnt+(FAT16Offset(N)/gFB.bytPerSec))
-#define FATFS16_FatEntryAtOffset(N) (FAT16Offset(N)%gFB.bytPerSec)
+#define FATFS16_FatEntryInSec(fat, N) (fat->bs.rsvdSecCnt+(FAT16Offset(N)/fat->bs.bytPerSec))
+#define FATFS16_FatEntryAtOffset(fat, N) (FAT16Offset(N)%fat->bs.bytPerSec)
 /* end of assumption */
 
 struct TFatBootSector
@@ -88,11 +89,20 @@ struct TFileInfo
   uint32 firstClus, fileSize;
 };
 
+struct TFatBuffers
+{
+  /* FATBOOTSEC_MAXSIZE/4 , would align to 4byte boundry */
+  uint32 FBBuf[FATBOOTSEC_MAXSIZE/4];
+  uint32 FFBuf[FATFAT_MAXSIZE/4]; 
+  uint32 FRDBuf[FATROOTDIR_MAXSIZE/4];
+};
+
 struct TFat
 {
   uint32 baseSec;
   uint8 *BBuf, *FBuf, *RDBuf;
   uint32 rdSize;
+  struct TFatBootSector bs;
 };
 
 struct TClusList
@@ -103,40 +113,50 @@ struct TClusList
 
 struct TFatFsUserContext
 {
+  struct TFat *fat;
   uint8 *curDirBuf;
   uint32 curDirBufLen;
   uint8 *tempDirBuf;
   uint32 tempDirBufLen;
+  uint8 sCurDir[FATFSPATHNAME_MAXSIZE];
+  uint8 sTempDir[FATFSPATHNAME_MAXSIZE];
   uint32 dirBuf1[FATFSUSERCONTEXTDIRBUF_MAXSIZE/4];
   uint32 dirBuf2[FATFSUSERCONTEXTDIRBUF_MAXSIZE/4];
   uint8 pName[FATFSPATHNAME_MAXSIZE];
   uint8 fName[FATFSLFN_SIZE];
 };
 
-extern struct TFatBootSector gFB;
 extern struct TFat gFat;
 
-int fatfs_init(int baseSec);
-int fatfs_loadbootsector();
-int fatfs_loadfat();
-int fatfs16_loadrootdir();
+int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs, int baseSec);
+int fatfs_loadbootsector(struct TFat *fat);
+int fatfs_loadfat(struct TFat *fat);
+int fatfs16_loadrootdir(struct TFat *fat);
 int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
-  struct TFileInfo *fInfo, uint32 *prevPos);
-int fatfs16_getopticluslist_usefileinfo(struct TFileInfo fInfo, 
-  struct TClusList *cl, int *clSize, uint32 *prevClus);
-int fatfs_loadfileallsec_usefileinfo(struct TFileInfo fInfo, uint8 *buf, 
-  uint32 bufLen);
-int fatfs_loadfilefull_usefileinfo(struct TFileInfo fInfo, uint8 *buf, 
-  uint32 bufLen);
-int fatfs_cleanup();
+      struct TFileInfo *fInfo, uint32 *prevPos);
+int fatfs16_getopticluslist_usefileinfo(struct TFat *fat, 
+      struct TFileInfo *fInfo, struct TClusList *cl, int *clSize, 
+      uint32 *prevClus);
+int fatfs_loadfileallsec_usefileinfo(struct TFat *fat, 
+      struct TFileInfo *fInfo, uint8 *buf, int32 bufLen);
+/* Call this before calling loadfileclus to verify if any 
+   empty space can occur at end of the given buffer */
+int fatfs_checkbuf_forloadfileclus(struct TFat *fat, uint32 bufLen);
+int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
+      uint8 *buf, uint32 bufLen, uint32 *totalClusRead, uint32 *prevClus);
+int fatfs_cleanup(struct TFat *fat);
 
-/* Note for THREADED prgs:  A given user context shouldn't be actively 
- * used by fatuc_xxx functions at the same time
+/* Notes
+ * * THREADED prgs:  A given user context shouldn't be actively 
+ *   used by fatuc_xxx functions at the same time
+ * * ch[ange]dir: user giving wrong path won't affect the uc
+ * * updatetempdirbufinfo: Always call this before using tempDirBuf 
+ *   of uc as tempDirBuf could point to gFat.RDBuf in some cases
  */
 void fatuc_updatetempdirbufinfo(struct TFatFsUserContext *uc);
 int fatuc_changedir(struct TFatFsUserContext *uc, char *fDirName,
   int bUpdateCurDir);
-int fatuc_init(struct TFatFsUserContext *uc);
+int fatuc_init(struct TFatFsUserContext *uc, struct TFat *fat);
 int fatuc_chdir(struct TFatFsUserContext *uc, char *fDirName);
 int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,  
   struct TFileInfo *fInfo, uint32 *prevPos);

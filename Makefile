@@ -15,6 +15,10 @@ clean:
 	rm $(CROSS)testfat || /bin/true
 	rm $(CROSS)testfat.gdb || /bin/true
 
+allclean: clean
+	rm bd.bd || /bin/true
+	rm tags || /bin/true
+
 16M: disk16M s16M f16M
 
 disk16M:
@@ -36,7 +40,7 @@ f16M:
 	dd if=/dev/zero of=$(TESTPATH)/zero2.log bs=4096 count=512
 	echo "1234567890" > $(TESTPATH)/longfilename.txt
 	echo "abcdefgh" > $(TESTPATH)/abc6.txt
-	dd if=/dev/zero of=$(TESTPATH)/zero3.log bs=4096 count=512
+	dd if=/dev/zero of=$(TESTPATH)/zero3.log bs=4096 count=128
 	echo "0987654321" > $(TESTPATH)/reallylongfilenamereallyrealylongfilenamereallyreallyreallylongfilename.log
 	mkdir $(TESTPATH)/dir1
 	echo "0987654321" > $(TESTPATH)/dir1/reallyDIR1longfilename.log
@@ -46,12 +50,13 @@ f16M:
 	echo "0987654321" > $(TESTPATH)/dir2/reallyDIR2longfilename.log
 	mkdir $(TESTPATH)/dir2/dir21
 	echo "0987654321" > $(TESTPATH)/dir2/dir21/reallyDIR21longfilename.log
-	dd if=/dev/zero of=$(TESTPATH)/dir2/zero4.log bs=4096 count=4096 || /bin/true
+	dd if=/dev/urandom of=$(TESTPATH)/dir2/rand4.log bs=2048 count=4096 || /bin/true
+	dd if=/dev/zero of=$(TESTPATH)/dir2/zero4.log bs=1024 count=4096 || /bin/true
 	rm $(TESTPATH)/abc2.txt
 	rm $(TESTPATH)/abc3.txt
 	rm $(TESTPATH)/abc4.txt
 	rm $(TESTPATH)/abc6.txt
-	dd if=/dev/zero of=$(TESTPATH)/spread.fil bs=512 count=16
+	dd if=/dev/urandom of=$(TESTPATH)/spread.fil bs=512 count=16
 	umount $(TESTPATH)
 
 t16M: testfat

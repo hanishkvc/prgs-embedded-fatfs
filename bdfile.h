@@ -13,7 +13,6 @@
 
 int bd_init();
 int bd_get_sectors(long sec, long count, char*buf);
-int bd_get_sectors_fine(long sec, long count, char*buf, long bufLen);
 int bd_cleanup();
 
 #endif

@@ -29,16 +29,6 @@ int bd_init()
   return 0;
 }
 
-int bd_get_sectors_fine(long sec, long count, char*buf, long bufLen)
-{
-  if(count*BDSECSIZE != bufLen)
-  {
-    printf("BDFILE:FIXME:getSectorsFine: bufLen != count*SECSIZE not yet implemented\n");
-    return -ERROR_NOTSUPPORTED;
-  }
-  return bd_get_sectors(sec, count, buf);
-}
-
 int bd_get_sectors(long sec, long count, char*buf)
 {
   int res;
