@@ -18,7 +18,5 @@
 #define BDFILE_FILE_LSEEK64 1
 #endif
 
-int bdfile_setup(bdkT *bdk);
-
 #endif
 

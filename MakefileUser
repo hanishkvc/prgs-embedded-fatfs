@@ -1,0 +1,31 @@
+
+CC=$(CROSS)gcc
+
+CFLAGS = -Wall -O2 -I ../include
+C_FLAGS=
+arm-elf-C_FLAGS= -D PRG_MODE_DM270
+CFLAGS += $($(CROSS)C_FLAGS)
+
+L_FLAGS= -L ../lib
+arm-elf-L_FLAGS= -Wl,-elf2flt="-s 262144" -L ../lib
+LFLAGS += $($(CROSS)L_FLAGS)
+
+INSTALLPATH=/hanishkvc/samples/fatfs
+arm-elf-INSTALLPATH=/experiments/src/forBoard24-27Oct2004/uClinux-dist-2003/prop
+
+TESTFATS=$(CROSS)testfat_pm $(CROSS)testfat_pm-d
+TESTFATS_FLTMISC=$(CROSS)testfat_pm.gdb $(CROSS)testfat_pm-d.gdb
+
+
+testfat:
+	$(CC) $(CFLAGS) $(LFLAGS) -o $(CROSS)testfat_pm testfat.c -l$(CROSS)fatfs_pm -D FATFS_FAT_PARTLYMAPPED
+	$(CC) $(CFLAGS) $(LFLAGS) -o $(CROSS)testfat_pm-d testfat.c -l$(CROSS)fatfs_pm-d -D FATFS_FAT_PARTLYMAPPED -D MAKE_DEBUG
+
+clean:
+	rm $(TESTFATS) || /bin/true
+	rm $(TESTFATS_FLTMISC) || /bin/true
+
+install:
+	mv $(TESTFATS) $($(CROSS)INSTALLPATH)/
+
+

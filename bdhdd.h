@@ -137,7 +137,5 @@
 #define BDHDD_SECCNT_MAX 256
 #define BDHDD_SECCNT_USE 256
 
-int bdhdd_setup(bdkT *bdk);
-
 #endif
 

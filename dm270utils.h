@@ -1,12 +1,16 @@
 /*
  * dm270utils.h - library for working on dm270 
- * v03Nov2004_1343
+ * v07Feb2005_2159
  * C Hanish Menon <hanishkvc>, 14july2004
  * Originaly written for a earlier linux port to dm270
  */
 
 #ifndef _DM270UTILS_H_
 #define _DM270UTILS_H_
+
+#include <bdk.h>
+#include <bdhdd.h>
+#include <bdh8b16.h>
 
 #define ONE_MB	0x100000
 /* GIO Register Define */
@@ -167,7 +171,15 @@ static inline int gio_bit_isset(int nGIO)
     return ((PA_MEMREAD16(DM270_BITSET0) & (0x1 << nGIO)) != 0x0);
 }
 
-#endif
+inline void bdh8b16_inswk_dm270dma(uint32 port, uint16* buf, int count);
+inline void bdh8b16_outswk_dm270dma(uint32 port, uint16* buf, int count);
+int bdh8b16_init_grpid_dm270ide_h8b16(bdkT *bd, int grpId, int devId);
 
+inline void bdhdd_inswk_dm270dma(uint32 port, uint16* buf, int count);
+inline void bdhdd_outswk_dm270dma(uint32 port, uint16* buf, int count);
+int bdhdd_init_grpid_dm270cf_fpmc(bdkT *bd, int grpId, int devId);
+int bdhdd_init_grpid_dm270cf_MemCARD3PCtlr(bdkT *bd, int grpId, int devId);
+
+#endif
 
 

@@ -10,12 +10,73 @@ ToDo
 * have to update fatfs->getfileinfo so that it doesn't convert the 16bit
   unicode to 8bit ascii.
 
+07Feb2005
+* Moved the dm270 related logic added to bdhdd.c and bdh8b16.c 
+  to dm270utils.c. So that all dm270 related logic is restricted to
+  dm270utils.x and others (bdhdd.c and bdh8b16.c) contain only
+  reference to the dm270utils.x. 
+  * The moved logic are
+    * init logics - dm270cf_fpmc, dm270cf_MemCARD3PCtlr, dm270ide_h8b16
+    * dma routines to move between sdram and cf and sdram and emif(ide)
+* SIMPLY LIKE THAT Added support for ATA Write to bdh8b16.x 
+  by moving from bdhdd.x
+  * put_sectors
+  * outswk simple,unrolled and dm270dma
+  UNTESTED for now, have to do it maybe tomorrow
+
+04Feb2005 
+>> Made fatfs a library explicitly atlast, 
+   previously it was a library only implicitly <<
+* Updated Makefile to create a library of fatfs files and then
+  compile testfat using this library
+* Moved the bdxyz_setup definitions of the builtin blockdev drivers
+  to bdk.h instead of the driver specific header files. Thus the
+  application using blockdev drivers needs to include only bdk.h
+* created a release entry in the makefile so that it copies
+  * libfatfs.a libraries
+  * header files (porta, blockdev, fatfs)
+  * testfatxyz.xyz files - test program for the library
+  * Makefile for library usage
+  files to the release directory.
+* Rationalized the bdh8b16 delay timings
+
+03Feb2005
+* Updated bdh8b16.x so that
+  * If error is found during disk access it is repeated n times before
+    giving up. 
+  * Check for bits of altstat has nanosleep intermixed so that the
+    host doesn't continuously bombard device with register access
+    cycles.
+  * checkstatus now has logic to explicitly wait (obviously with timeout)
+    for DRQ to be set if the checkstatus was requested for a command 
+    involving data transfer.
+    * As a result even sendcmd requires to be told whethere a datacommand
+      is being specified or not.
+  Done to handle devices which are connected on a bus with race which leads
+  to a lot of errors.
+  HAD to delay ChipEnable signal so that address stabilizes. This solved
+  the Race mentioned above(0x5111).
+* Updated testfat.c blockdev read speed check logic such that it even
+  works for blockdev drivers which don't have a seperate get_sectors_benchmark
+  routine.
+* Also updated bdh8b16.x so that
+  * It uses EMIF DMA for DM270
+  * Uses MultiSector read where available.
+  * Reduced the EMIF Cycle timing, thus speeding up access(0x2234).
+  * Speed as of now
+    7.23MB/Sec for 145MB file using 4MB databuffer
+    11.82MB/Sec for 65MB file using 4MB databuffer
+    04Feb2005>>Oops speed should be around 8.2MB/Sec only and not 
+    11.82MB/Sec as the 65MB file given in HDD was only 45MB in size.
+
 01Feb2005
 * Added write support for ATA devices
   * bdhdd_put_sectors
   * bdhdd_outsw routines simple, unrolled and dm270dma
 * Add routine for blockdev write speed check
 * Fixed some compiler warnings triggered by the older compiler
+  * flagSpecialCurOrPrev and two successive ;;
+* Increased the arm-elf- binary's stack to 256KB
 
 31Jan2005
 * __storefileclus updated wrt
@@ -27,7 +88,9 @@ ToDo
     enters the Allocate new clusters for the file case. This was the intention
     even yesterday but was some how missed out while putting the logic.
 * storerootdir and storefat updated such that they don't write beyond their
-  respective boundries as required.
+  respective boundries as required. Added fat->curFatEndSecAbs to help with
+  storefat so that it knows the FATTable boundry. Using fat->rdSize for the
+  case of storerootdir.
 * fsfreelist of testfat.c updated to display the total free space in the
   filesystem.
 
@@ -61,8 +124,8 @@ ToDo
   FATFS__STOREFILECLUS_FROMCLUS_ALLOC, which tells the logic that
   fromClus doesn't contain a valid cluster of the file and that it
   should allocate new clusters to the file and append it to its end.
-  FIXME: Should have been handled now, with the changes I have done but
-  still have to cross verify once again.
+  FIXED: Should have been handled now, with the changes I have done but
+  still have to cross verify once again. << FIXED_31Jan2005_ISN'TIT
   Also a Issue with fileSize which is a non multiple of clusSize and 
   writing till EOF which results in wrong newFileSize has been fixed.
 * As already mentioned fatfs_cleanup now calls fat->storerootdir and

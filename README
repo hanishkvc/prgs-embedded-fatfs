@@ -1,0 +1,45 @@
+fatfs - a portable fatfs implementation with 
+  native support for ATA devices and
+  flexiblity to add other block device drivers in a jiffy.
+v07Feb2005
+C Hanish Menon <hanishkvc>, 2004-2005
+License: GNU General Public License (GPL)
+======================================================================
+
+The files included as part of it include
+* porta library
+* blockdev library
+* fatfs library
+* TiDMxxx support library
+
+The implementation tries to strike a balance between speed and memory.
+So there are some restrictions at places whose boundries can be pushed
+to either side flexibly as required by changing defines in the code.
+
+This can be used from within a linux application in userspace independent
+of the linux kernel support for ATA devices and FatFs. However care should
+be taken so that linux kernel doesn't manage theses at the same time. One
+way is to tell the kernel hdxyz=none during booting.
+
+
+Tests
+------
+I have tested these logic on 
+* a simulated file based Block Device
+* HDD of emulators like bosch, qemu and vmware
+* HDD of PCs
+* HDD and CF of few Arm based Portable Media solutions
+Both Fat16 and Fat32 has been tested.
+
+
+INSTALL
+--------
+* For building library for use by others
+  make release
+  cd RELEASEPATH\src
+  make -- to build the test application
+* For building library and test app for own tests
+  make
+
+
+

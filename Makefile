@@ -1,44 +1,75 @@
 CC=$(CROSS)gcc
+AR=$(CROSS)ar
 CFLAGS = -Wall -g -I .
 CFLAGS = -Wall -O2 -I .
 C_FLAGS=
-arm-elf-C_FLAGS= -Wl,-elf2flt="-s 262144" -D PRG_MODE_DM270
+arm-elf-C_FLAGS= -D PRG_MODE_DM270
 CFLAGS += $($(CROSS)C_FLAGS)
+L_FLAGS= -L .
+arm-elf-L_FLAGS= -Wl,-elf2flt="-s 262144" -L .
+LFLAGS += $($(CROSS)L_FLAGS)
 
 PORTACFILES=rwporta.c utilsporta.c rand.c
+PORTAOFILES=rwporta.o utilsporta.o rand.o
 PORTAHFILES=rwporta.h utilsporta.h errorporta.h rand.h
 TESTPATH=/mnt/temp1
 INSTALLPATH=/hanishkvc/samples/fatfs
+RELEASEPATH=/hanishkvc/samples/fatfs/release
 arm-elf-INSTALLPATH=/experiments/src/forBoard24-27Oct2004/uClinux-dist-2003/prop
 
 FATFSCFILES=fatfs.c fsutils.c partk.c bdfile.c bdhdd.c linuxutils.c
-FATFSHFILES=fatfs.h partk.h bdfile.h inall.h bdhdd.h linuxutils.h
-arm-elf-FATFS_CFILES=bdh8b16.c
-arm-elf-FATFS_HFILES=bdh8b16.h
+FATFSOFILES=fatfs.o fsutils.o partk.o bdfile.o bdhdd.o linuxutils.o
+FATFSHFILES=fatfs.h partk.h bdfile.h inall.h bdhdd.h linuxutils.h bdk.h errs.h
+arm-elf-FATFS_CFILES=bdh8b16.c dm270utils.c
+arm-elf-FATFS_OFILES=bdh8b16.o dm270utils.o
+arm-elf-FATFS_HFILES=bdh8b16.h dm270utils.h
 FATFS_CFILES=bdh8b16.c
+FATFS_OFILES=bdh8b16.o
 FATFS_HFILES=bdh8b16.h
 FATFSCFILES+=$($(CROSS)FATFS_CFILES)
+FATFSOFILES+=$($(CROSS)FATFS_OFILES)
 FATFSHFILES+=$($(CROSS)FATFS_HFILES)
 
 TESTFATS=$(CROSS)testfat $(CROSS)testfat-d $(CROSS)testfat_pm $(CROSS)testfat_pm-d
 TESTFATS=$(CROSS)testfat $(CROSS)testfat_pm $(CROSS)testfat_pm-d
 TESTFATS=$(CROSS)testfat_pm $(CROSS)testfat_pm-d
 TESTFATS_FLTMISC=$(CROSS)testfat_pm.gdb $(CROSS)testfat_pm-d.gdb
-TESTFATCMDLINE=testfat.c $(FATFSCFILES) $(PORTACFILES)
+LIBFATFSS=lib$(CROSS)fatfs_pm.a lib$(CROSS)fatfs_pm-d.a
+LIBFATFSCFILES= $(FATFSCFILES) $(PORTACFILES)
+LIBFATFSOFILES= $(FATFSOFILES) $(PORTAOFILES)
+LIBFATFSHFILES= $(FATFSHFILES) $(PORTAHFILES)
 
-all: $(CROSS)testfat
+all: libfatfs $(CROSS)testfat 
+
+libfatfs: $(FATFSCFILES) $(FATFSHFILES) $(PORTAHFILES) $(PORTACFILES)
+#	$(CC) $(CFLAGS) -c $(LIBFATFSCFILES)
+#	$(AR) -cru lib$(CROSS)fatfs.a $(LIBFATFSOFILES)
+#	$(CC) $(CFLAGS) -c $(LIBFATFSCFILES) -D MAKE_DEBUG
+#	$(AR) -cru lib$(CROSS)fatfs-d.a $(LIBFATFSOFILES)
+	$(CC) $(CFLAGS) -c $(LIBFATFSCFILES) -D FATFS_FAT_PARTLYMAPPED
+	$(AR) -cru lib$(CROSS)fatfs_pm.a $(LIBFATFSOFILES)
+	$(CC) $(CFLAGS) -c $(LIBFATFSCFILES) -D FATFS_FAT_PARTLYMAPPED -D MAKE_DEBUG
+	$(AR) -cru lib$(CROSS)fatfs_pm-d.a $(LIBFATFSOFILES)
 
 $(CROSS)testfat: testfat.c $(FATFSCFILES) $(FATFSHFILES) $(PORTAHFILES) $(PORTACFILES)
-#	$(CC) $(CFLAGS) -o $(CROSS)testfat $(TESTFATCMDLINE)
-#	$(CC) $(CFLAGS) -o $(CROSS)testfat-d $(TESTFATCMDLINE) -D MAKE_DEBUG
-	$(CC) $(CFLAGS) -o $(CROSS)testfat_pm $(TESTFATCMDLINE) -D FATFS_FAT_PARTLYMAPPED
-	$(CC) $(CFLAGS) -o $(CROSS)testfat_pm-d $(TESTFATCMDLINE) -D FATFS_FAT_PARTLYMAPPED -D MAKE_DEBUG
+#	$(CC) $(CFLAGS) $(LFLAGS) -o $(CROSS)testfat testfat.c -l$(CROSS)fatfs
+#	$(CC) $(CFLAGS) $(LFLAGS) -o $(CROSS)testfat-d testfat.c -l$(CROSS)fatfs-d -D MAKE_DEBUG
+	$(CC) $(CFLAGS) $(LFLAGS) -o $(CROSS)testfat_pm testfat.c -l$(CROSS)fatfs_pm -D FATFS_FAT_PARTLYMAPPED
+	$(CC) $(CFLAGS) $(LFLAGS) -o $(CROSS)testfat_pm-d testfat.c -l$(CROSS)fatfs_pm-d -D FATFS_FAT_PARTLYMAPPED -D MAKE_DEBUG
 
 benchmark: bdhdd.c bdhdd.h
 	cpp -DBDHDD_BENCHMARK -DBDHDD_OPTIGETSECTOR_LOOP16 bdhdd.c > bdhdd_benchmark.c
 
 porta:
 	./hkvc-porta_setup.sh $(PORTACFILES) $(PORTAHFILES)
+
+release: libfatfs
+	rm -rf $(RELEASEPATH) || /bin/true
+	mkdir $(RELEASEPATH) $(RELEASEPATH)/include $(RELEASEPATH)/src $(RELEASEPATH)/lib
+	cp $(LIBFATFSHFILES) $(RELEASEPATH)/include
+	cp testfat*.* $(RELEASEPATH)/src
+	cp MakefileUser $(RELEASEPATH)/src/Makefile
+	cp $(LIBFATFSS) $(RELEASEPATH)/lib
 
 install:
 	mv $(TESTFATS) $($(CROSS)INSTALLPATH)/
@@ -48,7 +79,7 @@ install:
 clean:
 	rm $(TESTFATS) || /bin/true
 	rm $(TESTFATS_FLTMISC) || /bin/true
-	rm *.o core || /bin/true
+	rm *.o *.a core || /bin/true
 
 allclean: clean
 	rm bdf.bd || /bin/true

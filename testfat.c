@@ -5,22 +5,23 @@
  * 
  */
 
-#define TESTFAT_PRGVER "v01Feb2005_1755"
+#define TESTFAT_PRGVER "v07Feb2005_2255"
 
 #include <sched.h>
 
 #include <inall.h>
 #include <errs.h>
-#include <bdfile.h>
-#include <bdhdd.h>
-#include <bdh8b16.h>
+#include <bdk.h>
 #include <fatfs.h>
 #include <partk.h>
 #include <linuxutils.h>
 #include <rand.h>
 
 #define TESTFAT_BDBM_SECS 80000
+#define TESTFAT_BDBMR_SECS 2048
+#define TESTFAT_BDBMR_TIMES 20
 #define TESTFAT_BDBMW_SECS 2048
+#define TESTFAT_BDBMW_TIMES 20
 
 bdkT bdkBDFile;
 bdkT bdkHdd;
@@ -323,7 +324,7 @@ int testfat_fatfsfile_checksum(struct TFatFsUserContext *uc, char *sFile)
 
 int main(int argc, char **argv)
 {
-  int bExit, grpId, devId, partNo, forceMbr, forceReset;
+  int iCur, bExit, grpId, devId, partNo, forceMbr, forceReset, iNumSecsUsed;
   bdkT *bdk;
   char *pChar;
   uint32 fileSize;
@@ -507,29 +508,40 @@ int main(int argc, char **argv)
       lu_starttime(&gTFtv1);
       if(bdk->get_sectors_benchmark == NULL)
       {
-        fprintf(stderr,"ERR:testfat: NO BlockDev benchmark function\n");
-        lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"FAILED BlockDev raw");
-	break;
+        fprintf(stderr,"INFO:testfat: NO BlockDev benchmark function Using normal get_sectors\n");
+        for(iCur=0;iCur<TESTFAT_BDBMR_TIMES;iCur++)
+        {
+          if(bdk->get_sectors(bdk,0,TESTFAT_BDBMR_SECS,gDataBuf)!=0)
+            fprintf(stderr,"ERR:testfat: get_sectors_benchmark failed\n");
+	}
+	iNumSecsUsed = TESTFAT_BDBMR_TIMES*TESTFAT_BDBMR_SECS;
       }
-      if(bdk->get_sectors_benchmark(bdk,0,TESTFAT_BDBM_SECS,gDataBuf)!=0)
-        fprintf(stderr,"ERR:testfat: get_sectors_benchmark failed\n");
+      else
+      {
+        if(bdk->get_sectors_benchmark(bdk,0,TESTFAT_BDBM_SECS,gDataBuf)!=0)
+          fprintf(stderr,"ERR:testfat: get_sectors_benchmark failed\n");
+	iNumSecsUsed = TESTFAT_BDBM_SECS;
+      }
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"BlockDev raw speed");
       fprintf(stderr,"NumSecs[%d] time[%ld]usecs readSpeed/msec[%ld]\n",
-        TESTFAT_BDBM_SECS,timeInUSECS,
-        ((TESTFAT_BDBM_SECS*bdk->secSize)/(timeInUSECS/1000)));
+        iNumSecsUsed,timeInUSECS,
+        ((iNumSecsUsed*bdk->secSize)/(timeInUSECS/1000)));
     }
     if(strcmp("bsw",sCur) == 0)
     {
-      printf("BlockDev raw write speed test for [%d] sectors\n",TESTFAT_BDBMW_SECS);
+      printf("BlockDev raw write speed test for [%d] sectors\n",TESTFAT_BDBMW_SECS*TESTFAT_BDBMW_TIMES);
       if(bdk->get_sectors(bdk,0,TESTFAT_BDBMW_SECS,gDataBuf)!=0)
         fprintf(stderr,"ERR:testfat: get_sectors failed\n");
       lu_starttime(&gTFtv1);
-      if(bdk->put_sectors(bdk,0,TESTFAT_BDBMW_SECS,gDataBuf)!=0)
-        fprintf(stderr,"ERR:testfat: put_sectors failed\n");
+      for(iCur=0;iCur<TESTFAT_BDBMW_TIMES;iCur++)
+      {
+        if(bdk->put_sectors(bdk,0,TESTFAT_BDBMW_SECS,gDataBuf)!=0)
+          fprintf(stderr,"ERR:testfat: put_sectors failed\n");
+      }
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"BlockDev raw write speed");
       fprintf(stderr,"NumSecs[%d] time[%ld]usecs writeSpeed/msec[%ld]\n",
-        TESTFAT_BDBMW_SECS,timeInUSECS,
-        ((TESTFAT_BDBMW_SECS*bdk->secSize)/(timeInUSECS/1000)));
+        TESTFAT_BDBMW_SECS*TESTFAT_BDBMW_TIMES,timeInUSECS,
+        ((TESTFAT_BDBMW_SECS*TESTFAT_BDBMW_TIMES*bdk->secSize)/(timeInUSECS/1000)));
     }
     if(strcmp("reset",sCur) == 0)
     {

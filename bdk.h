@@ -35,5 +35,9 @@ typedef struct blockDevKT
 
 bdkT *blockDevKs[BDK_NUMDEVICES];
 
+int bdfile_setup(bdkT *bdk);
+int bdh8b16_setup(bdkT *bdk);
+int bdhdd_setup(bdkT *bdk);
+
 #endif
 

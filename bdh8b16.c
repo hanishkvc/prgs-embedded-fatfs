@@ -1,6 +1,6 @@
 /*
  * bdh8b16.c - library for working with a ide hdd
- * v19Nov2004_2002
+ * v07Feb2005_2250
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -13,66 +13,22 @@
 #include <utilsporta.h>
 #include <linuxutils.h>
 
-uint32 gBDH8B16RegionBase;
-
+#ifdef PRG_MODE_DM270
 #include <dm270utils.h>
-#ifdef BDH8B16_USE_INSWK_DM270DMA
-
-static inline void bdh8b16_inswk_dm270dma(uint32 port, uint16* buf, int count)
-{
-
-#ifdef BDH8B16_DM270DMA_SAFE
-  int iBuf;
-  /* REFCTL: Bit15-13 = 0,DMAChannel1BetweenEmifToSDRam */
-  iBuf=PA_MEMREAD16(DM270_REFCTL);
-  PA_MEMWRITE16(DM270_REFCTL,iBuf&0x1fff);
-  /* DMACTL: Bit0 = 1,DMATransfer in progress */
-  if(PA_MEMREAD16(DM270_DMACTL)&0x1)
-  {
-    fprintf(stderr,"ERR:BDH8B16:Someother EMIF DMA in progress, quiting\n");
-    exit(-ERROR_FAILED);
-  }
-  /* FIXME: Source, Dest and Size should be multiples of 4 */
-#endif
-  /* DMADEVSEL: Bit6-4 = 1,DMASrcIsCF; Bit2-0 = 5,DMADestIsSDRam */
-  PA_MEMWRITE16(DM270_DMADEVSEL,0x15);
-  /* DMASIZE: */
-  PA_MEMWRITE16(DM270_DMASIZE,count*2);
-  /* SOURCEADDH: Bit12:=1,FixedAddr, Bit9-0: AddrHigh Relative to CF Region */
-  port -= gBDH8B16RegionBase;
-  if(port > 0x40) /* Not DM270 CF, Maybe later add DM270 IDE support */
-  {
-    fprintf(stderr,"ERR:BDH8B16:DM270DMA doesn't support nonCF now, quiting\n");
-    exit(-ERROR_INVALID);
-  }
-  PA_MEMWRITE16(DM270_SOURCEADDH,0x1000|((port>>16)&0x3ff));
-  PA_MEMWRITE16(DM270_SOURCEADDL,port&0xffff);
-  /* Dest high 10bits and low 16bits */
-  (int32)buf -= DM270_SDRAM_BASE; /* int as addr !> 2GB */
-  PA_MEMWRITE16(DM270_DESTADDH,((uint32)buf>>16)&0x3ff);
-  PA_MEMWRITE16(DM270_DESTADDL,(uint32)buf&0xffff); 
-#if DEBUG_PRINT_BDH8B16 > 5000
-  fprintf(stderr,"INFO:BDH8B16:DM270DMA:Src[%ld] Dest[0x%lx] count [%d]\n",
-    port,(uint32)buf,count);
-#endif
-  /* DMACTL: Bit0 = 1,Start DMA */
-  PA_MEMWRITE16(DM270_DMACTL,0x1);
-  while(PA_MEMREAD16(DM270_DMACTL)); /* Inefficient CPU Use but for now */
-}
-
 #endif
 
 static inline void bdh8b16_inswk_simple(uint32 port, uint16* buf, int count)
 {
   int iCur;
   for(iCur=0;iCur<count;iCur++)
-  {
     buf[iCur] = BDH8B16_READ16(port);
-#if DEBUG_PRINT_BDH8B16 > 25
-    fprintf(stderr,"INFO:BDH8B16:inswk_simple: buf16[%d]=[0x%x]\n",
-      iCur, buf[iCur]);
-#endif
-  }
+}
+
+static inline void bdh8b16_outswk_simple(uint32 port, uint16* buf, int count)
+{
+  int iCur;
+  for(iCur=0;iCur<count;iCur++)
+    BDH8B16_WRITE16(port,buf[iCur]);
 }
 
 static inline void bdh8b16_inswk_unrolled(uint32 port, uint16* buf, int count)
@@ -106,14 +62,51 @@ static inline void bdh8b16_inswk_unrolled(uint32 port, uint16* buf, int count)
     buf[iBuf++]=BDH8B16_READ16(port);
 }
 
-static inline int bdh8b16_altstat_waitifbitset(bdkT *bd, char bit, int *iStat, int waitCnt)
+static inline void bdh8b16_outswk_unrolled(uint32 port, uint16* buf, int count)
+{
+  int iBuf,iWord,iLoops,iRem;
+  iBuf = 0;
+  iLoops = count/16; iRem = count%16;
+  for(iWord=0;iWord<iLoops;iWord++)
+  {
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+  }
+  for(iWord=0;iWord<iRem;iWord++)
+    BDH8B16_WRITE16(port,buf[iBuf++]);
+}
+
+static inline int bdh8b16_altstat_waitifbitset(bdkT *bd, char bit, int *iStat, int waitCnt, int btwNSDelay)
 {
   char iCur, iTest;
 
   do{
     iCur = BDH8B16_READ8(BDH8B16_CNTBR_ALTSTAT);
-    iCur = BDH8B16_READ8(BDH8B16_CMDBR_STATUS);
     iTest = iCur & bit;
+    if(iTest != 0)
+    {
+      if(lu_nanosleeppaka(0,btwNSDelay) != 0) return -ERROR_UNKNOWN;
+#if DEBUG_PRINT_BDH8B16 > 25    
+      fprintf(stderr,"s");
+#endif
+    }
     waitCnt--;
   }while((iTest != 0) && waitCnt);
   *iStat = iCur;
@@ -122,14 +115,21 @@ static inline int bdh8b16_altstat_waitifbitset(bdkT *bd, char bit, int *iStat, i
   return 0;
 }
 
-static inline int bdh8b16_altstat_waitifbitclear(bdkT *bd, char bit, int *iStat, int waitCnt)
+static inline int bdh8b16_altstat_waitifbitclear(bdkT *bd, char bit, int *iStat, int waitCnt, int btwNSDelay)
 {
   char iCur,iTest;
 
   do{
     iCur = BDH8B16_READ8(BDH8B16_CNTBR_ALTSTAT);
-    iCur = BDH8B16_READ8(BDH8B16_CMDBR_STATUS);
+    //iCur = BDH8B16_READ8(BDH8B16_CMDBR_STATUS);
     iTest = iCur & bit;
+    if(iTest == 0)
+    {
+      if(lu_nanosleeppaka(0,btwNSDelay) != 0) return -ERROR_UNKNOWN;
+#if DEBUG_PRINT_BDH8B16 > 25    
+      fprintf(stderr,"c");
+#endif
+    }
     waitCnt--;
   }while((iTest == 0) && waitCnt);
   *iStat = iCur;
@@ -235,32 +235,56 @@ static inline int bdh8b16_readyforcmd(bdkT *bd, int dev, int enLBA, int lba2427)
   return 0;
 }
 
-static inline int bdh8b16_checkstatus(bdkT *bd,uint8 cmd,int *iStatus,int *iError,int waitCnt)
+static inline int bdh8b16_checkstatus(bdkT *bd,uint8 cmd,int *iStatus,int *iError,int waitCnt, int dataCmd)
 {
   int ret;
 
-  ret=bdh8b16_altstat_waitifbitset(bd,BDH8B16_STATUS_BSYBIT,iStatus,waitCnt);
-  *iStatus = BDH8B16_READ8(BDH8B16_CMDBR_STATUS);
+  ret=bdh8b16_altstat_waitifbitset(bd,BDH8B16_STATUS_BSYBIT,iStatus,waitCnt,BDH8B16_WAITNS_ALTSTATCHECKSET);
 #if DEBUG_PRINT_BDH8B16 > 25
-  printf("INFO:[status=0x%x]\n",*iStatus);
+  printf("INFO:checkstatus:BSYBIT checked[altstatus=0x%x]\n",*iStatus);
 #endif
   if(ret!=0)
   {
+    *iStatus = BDH8B16_READ8(BDH8B16_CMDBR_STATUS);
     fprintf(stderr,"ERR:BDH8B16:checkstatus:0: Cmd[0x%x] Stat[0x%x] timeout\n", 
       cmd,*iStatus);
     return -ERROR_TIMEOUT;
   }
   if(*iStatus & BDH8B16_STATUS_ERRBIT)
   {
+    *iStatus = BDH8B16_READ8(BDH8B16_CMDBR_STATUS);
     *iError = BDH8B16_READ8(BDH8B16_CMDBR_ERROR);
     fprintf(stderr,"ERR:BDH8B16:checkstatus:0: Cmd[0x%x] Stat[0x%x] Err[0x%x]\n",
+      cmd,*iStatus,*iError);
+    return -ERROR_FAILED;
+  }
+  if(dataCmd == 0)
+  {
+    *iStatus = BDH8B16_READ8(BDH8B16_CMDBR_STATUS);
+    return 0;
+  }
+  ret=bdh8b16_altstat_waitifbitclear(bd,BDH8B16_STATUS_DRQBIT,iStatus,BDH8B16_WAIT_CHECKSTATUS_DRQ,BDH8B16_WAITNS_CHECKSTATUS_DRQ);
+  *iStatus = BDH8B16_READ8(BDH8B16_CMDBR_STATUS);
+#if DEBUG_PRINT_BDH8B16 > 25
+  printf("INFO:checkstatus:DRQBIT checked [status=0x%x]\n",*iStatus);
+#endif
+  if(ret!=0)
+  {
+    fprintf(stderr,"ERR:BDH8B16:checkstatus:1: Cmd[0x%x] Stat[0x%x] timeout\n", 
+      cmd,*iStatus);
+    return -ERROR_TIMEOUT;
+  }
+  if(*iStatus & BDH8B16_STATUS_ERRBIT)
+  {
+    *iError = BDH8B16_READ8(BDH8B16_CMDBR_ERROR);
+    fprintf(stderr,"ERR:BDH8B16:checkstatus:1: Cmd[0x%x] Stat[0x%x] Err[0x%x]\n",
       cmd,*iStatus,*iError);
     return -ERROR_FAILED;
   }
   return 0;
 }
 
-static inline int bdh8b16_sendcmd(bdkT *bd, uint8 cmd, int *iStatus, int *iError, int waitCnt)
+static inline int bdh8b16_sendcmd(bdkT *bd, uint8 cmd, int *iStatus, int *iError, int waitCnt, int dataCmd)
 {
   int ret;
   
@@ -268,7 +292,7 @@ static inline int bdh8b16_sendcmd(bdkT *bd, uint8 cmd, int *iStatus, int *iError
   BDH8B16_WRITE8(BDH8B16_CMDBR_COMMAND,cmd);
   if(lu_nanosleeppaka(0,BDH8B16_WAITNS_DEVUPDATESSTATUS) != 0)
     fprintf(stderr,"DEBUG:BDH8B16: nanosleeppaka after cmd[0x%d] failed\n",cmd);
-  ret = bdh8b16_checkstatus(bd,cmd,iStatus,iError,waitCnt);
+  ret = bdh8b16_checkstatus(bd,cmd,iStatus,iError,waitCnt,dataCmd);
   return ret;
 }
 
@@ -337,40 +361,8 @@ int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
 #ifdef PRG_MODE_DM270
   if(grpId == BDH8B16_GRPID_DM270IDE_H8B16)
   {
-    gBDH8B16RegionBase = PA_MEMREAD16(0x30A50) * 0x100000;
-    bd->CNTBR = gBDH8B16RegionBase + BDH8B16_CNTBR_OFFSET;
-    bd->CMDBR = gBDH8B16RegionBase + BDH8B16_CMDBR_OFFSET;
-    fprintf(stderr,"INFO:BDH8B16:DM270:H8B16 IDE - devId [%d] \n",devId);
-
-    /* Enable Buffer for IDE access from DM270 */
-    gio_dir_output(29);
-    gio_bit_clear(29);
-    lu_nanosleeppaka(1,0);
-    /* Debug */
-    fprintf(stderr,"INFO:BDH8B16:CMDBR registers\n");
-    fprintf(stderr,"INFO:BDH8B16:_DATA [0x%x]\n",BDH8B16_CMDBR_DATA);
-    fprintf(stderr,"INFO:BDH8B16:_FEATURES [0x%x]\n",BDH8B16_CMDBR_FEATURES);
-    fprintf(stderr,"INFO:BDH8B16:_ERROR [0x%x]\n",BDH8B16_CMDBR_ERROR);
-    fprintf(stderr,"INFO:BDH8B16:_SECCNT [0x%x]\n",BDH8B16_CMDBR_SECCNT);
-    fprintf(stderr,"INFO:BDH8B16:_LBA0 [0x%x]\n",BDH8B16_CMDBR_LBA0);
-    fprintf(stderr,"INFO:BDH8B16:_LBA8 [0x%x]\n",BDH8B16_CMDBR_LBA8);
-    fprintf(stderr,"INFO:BDH8B16:_LBA16 [0x%x]\n",BDH8B16_CMDBR_LBA16);
-    fprintf(stderr,"INFO:BDH8B16:_DEVLBA24 [0x%x]\n",BDH8B16_CMDBR_DEVLBA24);
-    fprintf(stderr,"INFO:BDH8B16:_COMMAND [0x%x]\n",BDH8B16_CMDBR_COMMAND);
-    fprintf(stderr,"INFO:BDH8B16:_STATUS [0x%x]\n",BDH8B16_CMDBR_STATUS);
-    fprintf(stderr,"INFO:BDH8B16:CNTBR registers\n");
-    fprintf(stderr,"INFO:BDH8B16:_DEVCNT [0x%x]\n",BDH8B16_CNTBR_DEVCNT);
-    fprintf(stderr,"INFO:BDH8B16:_ALTSTAT [0x%x]\n",BDH8B16_CNTBR_ALTSTAT);
-    /****/
-#ifdef BDH8B16_DM270_EMIF16
-    {
-    uint16 iEmif;
-    iEmif = PA_MEMREAD16(0x30A10);
-    iEmif |= 0x4000;
-    fprintf(stderr,"INFO:BDH8B16:DM270:IDE setting EMIF16 [0x%x]\n", iEmif);
-    PA_MEMWRITE16(0x30A10,iEmif);
-    }
-#endif
+    ret=bdh8b16_init_grpid_dm270ide_h8b16(bd, grpId, devId);
+    if(ret != 0) return ret;
   }
   else
 #endif
@@ -385,7 +377,7 @@ int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
 
   if((ret=bdh8b16_readyforcmd(bd,devId,BDH8B16_CFG_LBA,0)) != 0) return ret;
   if(bdh8b16_sendcmd(bd,BDH8B16_CMD_IDENTIFYDEVICE,&iStat,&iError,
-      BDH8B16_WAIT_CMDTIME) != 0)
+      BDH8B16_WAIT_CMDTIME,1) != 0)
   {
     fprintf(stderr,"ERR:BDH8B16: During IDENTIFYDEVICE cmd\n");
     return -ERROR_FAILED;
@@ -401,7 +393,7 @@ int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
     buf16[iStat]=BDH8B16_READ16(BDH8B16_CMDBR_DATA);
   }
 #ifdef BDH8B16_CHECK_DRQAFTERCMDCOMPLETION  
-  if(bdh8b16_altstat_waitifbitset(bd,BDH8B16_STATUS_DRQBIT,&iStat,BDH8B16_WAIT_AFTERCMDCOMPLETION) != 0)
+  if(bdh8b16_altstat_waitifbitset(bd,BDH8B16_STATUS_DRQBIT,&iStat,BDH8B16_WAIT_AFTERCMDCOMPLETION,BDH8B16_WAITNS_ALTSTATCHECKSET) != 0)
     fprintf(stderr,"DEBUG:BDH8B16:init: [0x%x] DRQ even after cmd completion\n",
       iStat);
 #if DEBUG_PRINT_BDH8B16 > 25
@@ -442,7 +434,7 @@ int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
     if((ret=bdh8b16_readyforcmd(bd,devId,BDH8B16_CFG_LBA,0)) != 0) return ret;
     BDH8B16_WRITE8(BDH8B16_CMDBR_SECCNT,bd->multiCnt);
     if(bdh8b16_sendcmd(bd,BDH8B16_CMD_SETMULTIPLEMODE,&iStat,&iError, 
-        BDH8B16_WAIT_CMDTIME) != 0)
+        BDH8B16_WAIT_CMDTIME,0) != 0)
     {
       fprintf(stderr,"ERR:BDH8B16: During SETMULTIPLEMODE cmd\n");
       return -ERROR_FAILED;
@@ -465,7 +457,7 @@ int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
   if((ret=bdh8b16_readyforcmd(bd,devId,BDH8B16_CFG_LBA,0)) != 0) return ret;
   BDH8B16_WRITE8(BDH8B16_CMDBR_SECCNT,0x0b);
   BDH8B16_WRITE8(BDH8B16_CMDBR_FEATURES,0x03);
-  if(bdh8b16_sendcmd(bd,0xEF,&iStat,&iError, BDH8B16_WAIT_CMDTIME) != 0)
+  if(bdh8b16_sendcmd(bd,0xEF,&iStat,&iError, BDH8B16_WAIT_CMDTIME,0) != 0)
   {
     fprintf(stderr,"ERR:BDH8B16: During SETFEATURES cmd\n");
     return -ERROR_FAILED;
@@ -482,12 +474,12 @@ int bdh8b16_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
 
 int bdh8b16_get_sectors(bdkT *bd, long sec, long count, char*buf)
 {
-  int iBuf, iStat, iError, ret;
+  int iBuf, iStat, iError, ret, iErrRep;
   int iLoops,iCurSecs,iLoop,iSec;
   uint16 *buf16 = (uint16*)buf;
 
 #if (DEBUG_PRINT_BDH8B16 > 15)
-  printf("INFO:BDH8B16: sec[%ld] count[%ld]\n", sec, count);
+  printf("INFO:BDH8B16:get sec[%ld] count[%ld]\n", sec, count);
 #endif
 
   iBuf=0;
@@ -507,8 +499,10 @@ int bdh8b16_get_sectors(bdkT *bd, long sec, long count, char*buf)
     else
       iCurSecs = BDH8B16_SECCNT_USE;
 #endif
+    iErrRep = 0;
+RepOnError:    
 #if DEBUG_PRINT_BDH8B16 > 25
-    printf("INFO:BDH8B16:get: curStartSec[%ld] remainingCount[%ld]\n",sec,count);
+    printf("INFO:BDH8B16:get: curStartSec[%ld] remainingCount[%ld] iRep[%d]\n",sec,count,iErrRep);
 #endif
     if((ret=bdh8b16_readyforcmd(bd,bd->devId,BDH8B16_CFG_LBA,
               ((sec&0xf000000)>>24))) != 0) return ret;
@@ -518,14 +512,17 @@ int bdh8b16_get_sectors(bdkT *bd, long sec, long count, char*buf)
     BDH8B16_WRITE8(BDH8B16_CMDBR_LBA16,((sec&0xff0000)>>16));
 #ifdef BDH8B16_CFG_RWMULTIPLE    
     if(bdh8b16_sendcmd(bd,BDH8B16_CMD_READMULTIPLE,&iStat,&iError,
-        BDH8B16_WAIT_CMDTIME) != 0)
+        BDH8B16_WAIT_CMDTIME,1) != 0)
 #else			    
     if(bdh8b16_sendcmd(bd,BDH8B16_CMD_READSECTORS,&iStat,&iError,
-        BDH8B16_WAIT_CMDTIME) != 0)
+        BDH8B16_WAIT_CMDTIME,1) != 0)
 #endif		    
     {
       bdh8b16_printsignature(bd);
-      fprintf(stderr,"ERR:BDH8B16: During READSECTORS cmd\n");
+      fprintf(stderr,"ERR:BDH8B16: During READSECTORS cmd sec[%ld] count[%ld] iErrRep[%d]\n",sec,count,iErrRep);
+      iErrRep++;
+      if(iErrRep < BDH8B16_ERRREPCNT)
+        goto RepOnError;
       return -ERROR_FAILED;
     }
     if(iCurSecs == 0) iCurSecs = BDH8B16_SECCNT_MAX;
@@ -537,7 +534,7 @@ int bdh8b16_get_sectors(bdkT *bd, long sec, long count, char*buf)
     {
       if(iSec > 0)
       {
-        ret=bdh8b16_checkstatus(bd,0xFF,&iStat,&iError,BDH8B16_WAIT_CMDTIME);
+        ret=bdh8b16_checkstatus(bd,0xFF,&iStat,&iError,BDH8B16_WAIT_CMDTIME,1);
         if(ret != 0)
         {
           fprintf(stderr,"ERR:BDH8B16: middle of READSECTORS, iStat[0x%x] iLoop[%d] iSec[%d]\n",iStat,iLoop,iSec);
@@ -569,12 +566,107 @@ int bdh8b16_get_sectors(bdkT *bd, long sec, long count, char*buf)
     sec+=iCurSecs;
   }
 #ifdef BDH8B16_CHECK_DRQAFTERCMDCOMPLETION  
-  if(bdh8b16_altstat_waitifbitset(bd,BDH8B16_STATUS_DRQBIT,&iStat,BDH8B16_WAIT_AFTERCMDCOMPLETION) != 0)
+  if(bdh8b16_altstat_waitifbitset(bd,BDH8B16_STATUS_DRQBIT,&iStat,BDH8B16_WAIT_AFTERCMDCOMPLETION,BDH8B16_WAITNS_ALTSTATCHECKSET) != 0)
     fprintf(stderr,"DEBUG:BDH8B16:get: [0x%x] DRQ even after cmd completion\n",
       iStat);
 #if DEBUG_PRINT_BDH8B16 > 25
   fprintf(stderr,"INFO:BDH8B16:get: after cmd completion [0x%x] \n",iStat);
 #endif
+#endif
+  return 0;
+}
+
+int bdh8b16_put_sectors(bdkT *bd, long sec, long count, char*buf)
+{
+  int iBuf, iStat, iError, ret;
+  int iLoops,iCurSecs,iLoop,iSec;
+  uint16 *buf16 = (uint16*)buf;
+
+#if (DEBUG_PRINT_BDH8B16 > 15)
+  printf("INFO:BDH8B16:put sec[%ld] count[%ld]\n", sec, count);
+#endif
+
+  iBuf=0;
+  iLoops = (count/BDH8B16_SECCNT_USE);
+  if((count%BDH8B16_SECCNT_USE) != 0)
+    iLoops++;
+  for(iLoop=0;iLoop<iLoops;iLoop++)
+  {
+#if BDH8B16_SECCNT_MAX == BDH8B16_SECCNT_USE
+    if(count < BDH8B16_SECCNT_MAX)
+      iCurSecs = count;
+    else
+      iCurSecs = 0;
+#else
+    if(count < BDH8B16_SECCNT_USE)
+      iCurSecs = count;
+    else
+      iCurSecs = BDH8B16_SECCNT_USE;
+#endif
+#if DEBUG_PRINT_BDH8B16 > 25
+    printf("INFO:BDH8B16:put: curStartSec[%ld] remainingCount[%ld]\n",sec,count);
+#endif
+    if((ret=bdh8b16_readyforcmd(bd,bd->devId,BDH8B16_CFG_LBA,
+              ((sec&0xf000000)>>24))) != 0) return ret;
+    BDH8B16_WRITE8(BDH8B16_CMDBR_SECCNT,iCurSecs);
+    BDH8B16_WRITE8(BDH8B16_CMDBR_LBA0,(sec&0xff));
+    BDH8B16_WRITE8(BDH8B16_CMDBR_LBA8,((sec&0xff00)>>8));
+    BDH8B16_WRITE8(BDH8B16_CMDBR_LBA16,((sec&0xff0000)>>16));
+#ifdef BDH8B16_CFG_RWMULTIPLE    
+    if(bdh8b16_sendcmd(bd,BDH8B16_CMD_WRITEMULTIPLE,&iStat,&iError,
+        BDH8B16_WAIT_CMDTIME,1) != 0)
+#else			    
+    if(bdh8b16_sendcmd(bd,BDH8B16_CMD_WRITESECTORS,&iStat,&iError,
+        BDH8B16_WAIT_CMDTIME,1) != 0)
+#endif		    
+    {
+      bdh8b16_printsignature(bd);
+      fprintf(stderr,"ERR:BDH8B16:put During WRITE cmd\n");
+      return -ERROR_FAILED;
+    }
+    if(iCurSecs == 0) iCurSecs = BDH8B16_SECCNT_MAX;
+#ifdef BDH8B16_CFG_RWMULTIPLE
+    for(iSec=0;iSec<iCurSecs;iSec+=bd->multiCnt)
+#else
+    for(iSec=0;iSec<iCurSecs;iSec++)
+#endif	    
+    {
+      if(iSec > 0)
+      {
+        ret=bdh8b16_checkstatus(bd,0xFF,&iStat,&iError,BDH8B16_WAIT_CMDTIME,1);
+        if(ret != 0)
+        {
+          fprintf(stderr,"ERR:BDH8B16:put middle of WRITE, iStat[0x%x] iLoop[%d] iSec[%d]\n",iStat,iLoop,iSec);
+          return ret;
+        }
+      }
+      if((iStat&BDH8B16_STATUS_DRQBIT)==0)
+      {
+        fprintf(stderr,"ERR:BDH8B16:put WRITE DRQ not set, iStat[0x%x] iLoop[%d] iSec[%d]\n",iStat,iLoop,iSec);
+        return -ERROR_FAILED;
+      }
+#ifdef BDH8B16_CFG_RWMULTIPLE
+      {
+      int iMulti;      
+      iMulti = iCurSecs - iSec;
+      if(iMulti > bd->multiCnt) iMulti = bd->multiCnt;
+      BDH8B16_WRITE16S(BDH8B16_CMDBR_DATA,&buf16[iBuf],256*iMulti);
+      iBuf+=256*iMulti;
+      }
+#else
+      BDH8B16_WRITE16S(BDH8B16_CMDBR_DATA,&buf16[iBuf],256);
+      iBuf+=256;
+#endif      
+#ifdef BDH8B16_BENCHMARK
+      iBuf = 0;
+#endif      
+    }
+    count-=iCurSecs;
+    sec+=iCurSecs;
+  }
+#ifdef BDH8B16_CHECK_DRQAFTERCMDCOMPLETION  
+  if(bdh8b16_altstat_waitifbitset(bd,BDH8B16_STATUS_DRQBIT,&iStat,BDH8B16_WAIT_AFTERCMDCOMPLETION,BDH8B16_WAITNS_ALTSTATCHECKSET) != 0)
+    fprintf(stderr,"DEBUG:BDH8B16:put: DRQ set even after cmd completion\n");
 #endif
   return 0;
 }
@@ -608,6 +700,7 @@ int bdh8b16_setup(bdkT *bdk)
   bdk->cleanup = bdh8b16_cleanup;
   bdk->reset = bdh8b16_reset;
   bdk->get_sectors = bdh8b16_get_sectors;
+  bdk->put_sectors = bdh8b16_put_sectors;
   bdk->get_sectors_benchmark = NULL;
   pa_strncpy(bdk->name,"bdh8b16",BDK_DEVNAMELEN);
   return 0;
