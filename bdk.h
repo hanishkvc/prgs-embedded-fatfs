@@ -1,6 +1,6 @@
 /*
  * bdk.h - generic blockdev logic
- * v15Oct2004_0937
+ * v06Nov2004_1737
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -15,8 +15,9 @@
 typedef struct blockDevKT
 {
   int grpId, devId;
-  int (*init)(struct blockDevKT*, char*, int, int);
-  int (*get_sectors)(struct blockDevKT*, long, long, char*); 
+  int (*init)(struct blockDevKT*, char* secBuf, 
+               int grpId, int devId, int reset);
+  int (*get_sectors)(struct blockDevKT*, long sec, long count, char* buf); 
   int (*cleanup)(struct blockDevKT*);
   int (*reset)(struct blockDevKT*);
   char name[BDK_DEVNAMELEN];
@@ -27,7 +28,8 @@ typedef struct blockDevKT
   /* general */
   void *u1, *u2, *u3, *u4;
   /* benchmark */
-  int (*get_sectors_benchmark)(struct blockDevKT*, long, long, char*); 
+  int (*get_sectors_benchmark)(struct blockDevKT*, 
+                                long sec, long count, char* buf); 
 } bdkT;
 
 bdkT *blockDevKs[BDK_NUMDEVICES];

@@ -11,8 +11,8 @@ TESTPATH=/mnt/temp1
 INSTALLPATH=/hanishkvc/samples/fatfs
 arm-elf-INSTALLPATH=/experiments/src/forBoard24-27Oct2004/uClinux-dist-2003/prop
 
-FATFSCFILES=fatfs.c fsutils.c partk.c bdfile.c bdhdd.c
-FATFSHFILES=fatfs.h partk.h bdfile.h inall.h bdhdd.h
+FATFSCFILES=fatfs.c fsutils.c partk.c bdfile.c bdhdd.c linuxutils.c
+FATFSHFILES=fatfs.h partk.h bdfile.h inall.h bdhdd.h linuxutils.h
 
 TESTFATS=$(CROSS)testfat $(CROSS)testfat-d $(CROSS)testfat_pm $(CROSS)testfat_pm-d
 TESTFATS=$(CROSS)testfat $(CROSS)testfat_pm $(CROSS)testfat_pm-d

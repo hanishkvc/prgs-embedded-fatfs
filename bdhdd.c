@@ -1,50 +1,19 @@
 /*
  * bdhdd.c - library for working with a ide hdd
- * v04Nov2004_2330
+ * v19Nov2004_1332
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
 #ifndef BDHDD_BENCHMARK
 #include <stdio.h>
-#include <time.h>
-#include <errno.h>
 
 #include <bdhdd.h>
 #include <errs.h>
 #include <utilsporta.h>
-
-int paka_nanosleep(struct timespec *req)
-{
-  struct timespec rem;
-  
-  do{
-    if(nanosleep(req,&rem) != 0)
-    {
-      if(errno == EINTR)
-      {
-        req->tv_sec = rem.tv_sec;
-	req->tv_nsec = rem.tv_nsec;
-#if DEBUG_GENERIC > 25	
-	printf("INFO: nanosleep interrupted, but as been recovered\n");
-#endif	
-      }
-      else
-      {
-#if DEBUG_GENERIC > 25	
-        fprintf(stderr,"ERR: nanosleep failed\n");
-#endif	
-	return -ERROR_FAILED;
-      }
-    }
-    else
-      return 0;
-  }while(1);
-  return -ERROR_INVALID;
-}
+#include <linuxutils.h>
 
 #ifdef BDHDD_USE_INSWK_DM270DMA
-
 #include <dm270utils.h>
 
 static inline void bdhdd_inswk_dm270dma(uint32 port, uint16* buf, int count)
@@ -53,10 +22,10 @@ static inline void bdhdd_inswk_dm270dma(uint32 port, uint16* buf, int count)
 #ifdef BDHDD_DM270DMA_SAFE
   int iBuf;
   /* REFCTL: Bit15-13 = 0,DMAChannel1BetweenEmifToSDRam */
-  iBuf=BDHDD_READ16(DM270_REFCTL);
-  BDHDD_WRITE16(DM270_REFCTL,iBuf&0x1fff);
+  iBuf=PA_MEMREAD16(DM270_REFCTL);
+  PA_MEMWRITE16(DM270_REFCTL,iBuf&0x1fff);
   /* DMACTL: Bit0 = 1,DMATransfer in progress */
-  if(BDHDD_READ16(DM270_DMACTL)&0x1)
+  if(PA_MEMREAD16(DM270_DMACTL)&0x1)
   {
     fprintf(stderr,"ERR:BDHDD:Someother EMIF DMA in progress, quiting\n");
     exit(-ERROR_FAILED);
@@ -64,9 +33,9 @@ static inline void bdhdd_inswk_dm270dma(uint32 port, uint16* buf, int count)
   /* FIXME: Source, Dest and Size should be multiples of 4 */
 #endif
   /* DMADEVSEL: Bit6-4 = 1,DMASrcIsCF; Bit2-0 = 5,DMADestIsSDRam */
-  BDHDD_WRITE16(DM270_DMADEVSEL,0x15);
+  PA_MEMWRITE16(DM270_DMADEVSEL,0x15);
   /* DMASIZE: */
-  BDHDD_WRITE16(DM270_DMASIZE,count*2);
+  PA_MEMWRITE16(DM270_DMASIZE,count*2);
   /* SOURCEADDH: Bit12:=1,FixedAddr, Bit9-0: AddrHigh Relative to CF Region */
   port -= BDHDD_DM270CF_CMDBR;
   if(port > 16) /* Not DM270 CF, Maybe later add DM270 IDE support */
@@ -74,19 +43,19 @@ static inline void bdhdd_inswk_dm270dma(uint32 port, uint16* buf, int count)
     fprintf(stderr,"ERR:BDHDD:DM270DMA doesn't support nonCF now, quiting\n");
     exit(-ERROR_INVALID);
   }
-  BDHDD_WRITE16(DM270_SOURCEADDH,0x1000|((port>>16)&0x3ff));
-  BDHDD_WRITE16(DM270_SOURCEADDL,port&0xffff);
+  PA_MEMWRITE16(DM270_SOURCEADDH,0x1000|((port>>16)&0x3ff));
+  PA_MEMWRITE16(DM270_SOURCEADDL,port&0xffff);
   /* Dest high 10bits and low 16bits */
   (int32)buf -= DM270_SDRAM_BASE; /* int as addr !> 2GB */
-  BDHDD_WRITE16(DM270_DESTADDH,((uint32)buf>>16)&0x3ff);
-  BDHDD_WRITE16(DM270_DESTADDL,(uint32)buf&0xffff); 
+  PA_MEMWRITE16(DM270_DESTADDH,((uint32)buf>>16)&0x3ff);
+  PA_MEMWRITE16(DM270_DESTADDL,(uint32)buf&0xffff); 
 #if DEBUG_PRINT_BDHDD > 5000
   fprintf(stderr,"INFO:BDHDD:DM270DMA:Src[%ld] Dest[0x%lx] count [%d]\n",
     port,(uint32)buf,count);
 #endif
   /* DMACTL: Bit0 = 1,Start DMA */
-  BDHDD_WRITE16(DM270_DMACTL,0x1);
-  while(BDHDD_READ16(DM270_DMACTL)); /* Inefficient CPU Use but for now */
+  PA_MEMWRITE16(DM270_DMACTL,0x1);
+  while(PA_MEMREAD16(DM270_DMACTL)); /* Inefficient CPU Use but for now */
 }
 
 #endif
@@ -267,13 +236,15 @@ static inline int bdhdd_checkstatus(bdkT *bd,uint8 cmd,int *iStatus,int *iError,
 #endif
   if(ret!=0)
   {
-    fprintf(stderr,"ERR: Cmd [0x%x] timeout\n", cmd);
+    fprintf(stderr,"ERR:BDHDD:checkstatus:0: Cmd[0x%x] Stat[0x%x] timeout\n", 
+      cmd,*iStatus);
     return -ERROR_TIMEOUT;
   }
   if(*iStatus & BDHDD_STATUS_ERRBIT)
   {
     *iError = BDHDD_READ8(BDHDD_CMDBR_ERROR);
-    fprintf(stderr,"ERR: Cmd [0x%x] returned error [0x%x]\n",cmd,*iError);
+    fprintf(stderr,"ERR:BDHDD:checkstatus:0: Cmd[0x%x] Stat[0x%x] Err[0x%x]\n",
+      cmd,*iStatus,*iError);
     return -ERROR_FAILED;
   }
   return 0;
@@ -281,15 +252,12 @@ static inline int bdhdd_checkstatus(bdkT *bd,uint8 cmd,int *iStatus,int *iError,
 
 static inline int bdhdd_sendcmd(bdkT *bd, uint8 cmd, int *iStatus, int *iError, int waitCnt)
 {
-  struct timespec ts;
   int ret;
   
   BDHDD_WRITE8(BDHDD_CNTBR_DEVCNT,BDHDD_DEVCNT_NOINTBIT);
   BDHDD_WRITE8(BDHDD_CMDBR_COMMAND,cmd);
-  ts.tv_sec = 0;
-  ts.tv_nsec = BDHDD_WAITNS_DEVUPDATESSTATUS;
-  if(nanosleep(&ts,&ts) != 0)
-    fprintf(stderr,"DEBUG:BDHDD: nanosleep after cmd[0x%d] interrupted\n",cmd);
+  if(lu_nanosleeppaka(0,BDHDD_WAITNS_DEVUPDATESSTATUS) != 0)
+    fprintf(stderr,"DEBUG:BDHDD: nanosleeppaka after cmd[0x%d] failed\n",cmd);
   ret = bdhdd_checkstatus(bd,cmd,iStatus,iError,waitCnt);
   return ret;
 }
@@ -306,22 +274,17 @@ void bdhdd_printsignature(bdkT *bd)
 
 int bdhdd_reset(bdkT *bd)
 {
-  struct timespec ts;
   int ret, iStat;
   
   /* P1 Device 0 */
   BDHDD_WRITE8(BDHDD_CNTBR_DEVCNT,BDHDD_DEVCNT_SRSTBIT); /* Set reset */
-  ts.tv_sec = BDHDD_WAITSEC_SRST_P1;
-  ts.tv_nsec = BDHDD_WAITNS_DEVUPDATESSTATUS;
-  if(paka_nanosleep(&ts) != 0)
+  if(lu_nanosleeppaka(BDHDD_WAITSEC_SRST_P1,BDHDD_WAITNS_DEVUPDATESSTATUS) != 0)
     fprintf(stderr,"ERR:BDHDD:reset:p1: nanosleep\n");
   ret = BDHDD_READ8(BDHDD_CMDBR_ERROR);
   fprintf(stderr,"INFO:BDHDD:reset:p1: errorreg diagnostics [0x%x]\n",ret);
   /* P2 Device 1 and BSY clear*/
   BDHDD_WRITE8(BDHDD_CNTBR_DEVCNT,0); /* Clear reset */
-  ts.tv_sec = BDHDD_WAITSEC_SRST_P2;
-  ts.tv_nsec = 0;
-  if(paka_nanosleep(&ts) != 0)
+  if(lu_nanosleeppaka(BDHDD_WAITSEC_SRST_P2,0) != 0)
     fprintf(stderr,"ERR:BDHDD:reset:p2: nanosleep\n");
   bdhdd_printsignature(bd);
   ret = BDHDD_READ8(BDHDD_CMDBR_ERROR);
@@ -345,9 +308,7 @@ int bdhdd_reset(bdkT *bd)
     ret = -ERROR_FAILED;
   }
   /* P3 DRDY Set */
-  ts.tv_sec = BDHDD_WAITSEC_SRST_P3;
-  ts.tv_nsec = 0;
-  if(paka_nanosleep(&ts) != 0)
+  if(lu_nanosleeppaka(BDHDD_WAITSEC_SRST_P3,0) != 0)
     fprintf(stderr,"ERR:BDHDD:reset:p3: nanosleep\n");
   if(bdhdd_status_waitifbitclear(bd,BDHDD_STATUS_DRDYBIT,&iStat,
       BDHDD_WAIT_SRSTDRDY) != 0)
@@ -358,7 +319,7 @@ int bdhdd_reset(bdkT *bd)
   return ret;
 }
 
-int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
+int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
 {
   int iStat,iError,ret;
   uint16 *buf16 = (uint16*)secBuf;
@@ -381,34 +342,71 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
     printf("INFO:BDHDD: PC ide0(Primary) - devId [%d] \n", devId);
   }
 #ifdef PRG_MODE_DM270
-  else if(grpId == BDHDD_GRPID_DM270CF)
+  else if(grpId == BDHDD_GRPID_DM270CF_FPMC)
   {
-    bd->CMDBR = BDHDD_DM270CF_CMDBR; bd->CNTBR = BDHDD_DM270CF_CNTBR;
-    fprintf(stderr,"INFO:BDHDD:DM270 CF - devId [%d] \n",devId);
-    fprintf(stderr,"INFO:BDHDD:CF Base addr [0x%x]Mb\n",BDHDD_READ16(0x30A4C));
+    bd->CMDBR = PA_MEMREAD16(0x30A4C) * 0x100000;
+    bd->CNTBR = bd->CMDBR + 8;
+    if((bd->CMDBR!=BDHDD_DM270CF_CMDBR) || (bd->CNTBR!=BDHDD_DM270CF_CNTBR))
+      fprintf(stderr,"INFO:BDHDD:init-DM270 CMDBR and or CNTBR different\n");
+    fprintf(stderr,"INFO:BDHDD:DM270:FPMC CF - devId [%d] \n",devId);
 
     /* Enable power to CF */
     gio_dir_output(21);
     gio_bit_clear(21);
-    sleep(1);
+    lu_nanosleeppaka(1,0);
     /* BUSWAITMD: Bit1=0,CFRDYisCF; Bit0=1,AccessUsesCFRDY */
-    BDHDD_WRITE16(0x30A26,0x1);
+    PA_MEMWRITE16(0x30A26,0x1);
 #ifdef BDHDD_DM270_FASTEMIF
+    fprintf(stderr,"INFO:BDHDD:DM270 CF - FastEMIF mode \n");
     /**** EMIF CF Cycle time => 0x0c0d 0x0901 0x1110 ****/
+    /**** EMIF CF Cycle time => 0x0708 0x0401 0x1110 ****/
     /* CS1CTRL1A: Bit12-8=0xc,ChipEnableWidth; Bit4-0=0xd,CycleWidth */
-    BDHDD_WRITE16(0x30A04,0x0c0d);
+    PA_MEMWRITE16(0x30A04,0x0708);
     /* CS1CTRL1B: Bit12-8=0x09,OutputEnWidth; Bit4-0=0x01,WriteEnWidth */
-    BDHDD_WRITE16(0x30A06,0x0401); /* FIXME: Verifying 0x04 */
+    PA_MEMWRITE16(0x30A06,0x0401);
     /* CS1CTRL2: Bit13-12=0x1,Idle; Bit11-8=0x1,OutputEnSetup
                  Bit7-4=0x1,WriteEnableSetup; Bit3-0=0,ChipEnSetup */
-    BDHDD_WRITE16(0x30A08,0x1110);
+    PA_MEMWRITE16(0x30A08,0x1110);
 #endif
     /* CFCTRL1: Bit0=0,CFInterfaceActive AND SSMCinactive */
-    BDHDD_WRITE16(0x30A1A,0x0);   
+    PA_MEMWRITE16(0x30A1A,0x0);   
     /* CFCTRL2: Bit4=0,CFDynBusSzOff=16bit; Bit0=1,REG=CommonMem */
-    BDHDD_WRITE16(0x30A1C,0x1);
+    PA_MEMWRITE16(0x30A1C,0x1);
     /* BUSINTEN: Bit1=0,InttFor0->1; Bit0=0,CFRDYDoesntGenInt */
-    BDHDD_WRITE16(0x30A20,0x0);
+    PA_MEMWRITE16(0x30A20,0x0);
+  }
+  else if(grpId == BDHDD_GRPID_DM270CF_MEMCARD3PCTLR)
+  {
+    bd->CMDBR = PA_MEMREAD16(0x30A4C) * 0x100000;
+    bd->CNTBR = bd->CMDBR + 8;
+    if((bd->CMDBR!=BDHDD_DM270CF_CMDBR) || (bd->CNTBR!=BDHDD_DM270CF_CNTBR))
+      fprintf(stderr,"INFO:BDHDD:init-DM270 CMDBR and or CNTBR different\n");
+    fprintf(stderr,"INFO:BDHDD:DM270:MemCARD3PCtlr CF - devId [%d] \n",devId);
+
+    /* BUSWAITMD: Bit1=0,CFRDYisCF; Bit0=1,AccessUsesCFRDY */
+    PA_MEMWRITE16(0x30A26,0x1);
+#ifdef BDHDD_DM270_MEMCARD3PCTLR_FASTEMIF
+    fprintf(stderr,"INFO:BDHDD:DM270 CF - FastEMIF mode \n");
+    /**** EMIF CF Cycle time => 0x1415 0x0901 0x1220 ****/
+    /**** EMIF CF Cycle time => 0x0c0d 0x0901 0x1110 ****/
+    /**** EMIF CF Cycle time => 0x0708 0x0401 0x1110 ****/
+    /**** EMIF CF Cycle time => 0x1718 0x1109 0x2442 ****/
+    /* CS1CTRL1A: Bit12-8=0xc,ChipEnableWidth; Bit4-0=0xd,CycleWidth */
+    PA_MEMWRITE16(0x30A04,0x1112);
+    /* CS1CTRL1B: Bit12-8=0x09,OutputEnWidth; Bit4-0=0x01,WriteEnWidth */
+    PA_MEMWRITE16(0x30A06,0x0e07);
+    /* CS1CTRL2: Bit13-12=0x1,Idle; Bit11-8=0x1,OutputEnSetup
+                 Bit7-4=0x1,WriteEnableSetup; Bit3-0=0,ChipEnSetup */
+    PA_MEMWRITE16(0x30A08,0x1331);
+    fprintf(stderr,"INFO:BDHDD:DM270CF - [0x%x:0x%x:0x%x]\n",
+      PA_MEMREAD16(0x30A04), PA_MEMREAD16(0x30A06), PA_MEMREAD16(0x30A08));
+#endif
+    /* CFCTRL1: Bit0=0,CFInterfaceActive AND SSMCinactive */
+    PA_MEMWRITE16(0x30A1A,0x0);   
+    /* CFCTRL2: Bit4=0,CFDynBusSzOff=16bit; Bit0=1,REG=CommonMem */
+    PA_MEMWRITE16(0x30A1C,0x1);
+    /* BUSINTEN: Bit1=0,InttFor0->1; Bit0=0,CFRDYDoesntGenInt */
+    PA_MEMWRITE16(0x30A20,0x0);
   }
 #endif
   else
@@ -417,6 +415,9 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
     return -ERROR_INVALID;
   }
   printf("INFO:BDHDD: CMDBR [0x%x] CNTBR [0x%x]\n", bd->CMDBR, bd->CNTBR);
+
+  if(reset)
+    bdhdd_reset(bd);
 
   if((ret=bdhdd_readyforcmd(bd,devId,BDHDD_CFG_LBA,0)) != 0) return ret;
   if(bdhdd_sendcmd(bd,BDHDD_CMD_IDENTIFYDEVICE,&iStat,&iError,
@@ -448,9 +449,12 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
     buffer_read_string_noup((char*)&buf16[23],8,(char*)&buf16[160],32));
   printf("INFO:BDHDD:ID: Model number [%s]\n",
     buffer_read_string_noup((char*)&buf16[27],40,(char*)&buf16[160],64));
-  printf("INFO:BDHDD:ID:51:OldPIOMode Supported [%d:0x%x]\n",(buf16[51]&0xff00)>>8,buf16[51]);
-  printf("INFO:BDHDD:ID:53:FieldValidity AdvancedPIO [%d:0x%x]\n",buf16[53]&0x2,buf16[53]);
-  printf("INFO:BDHDD:ID:--:APIO 64[%d] 65[%d] 66[%d] 67[%d] 68[%d]\n",buf16[64],buf16[65],buf16[66],buf16[67],buf16[68]);
+  printf("INFO:BDHDD:ID:51:OldPIOMode Supported [%d:0x%x]\n",
+    (buf16[51]&0xff00)>>8,buf16[51]);
+  printf("INFO:BDHDD:ID:53:FieldValidity AdvancedPIO [%d:0x%x]\n",
+    buf16[53]&0x2,buf16[53]);
+  printf("INFO:BDHDD:ID:--:APIO 64[%d] 65[%d] 66[%d] 67[%d] 68[%d]\n",
+    buf16[64],buf16[65],buf16[66],buf16[67],buf16[68]);
 #endif
   if(buf16[49]&0x200)
     printf("INFO:BDHDD:ID: LBA Supported, totalUserAddressableSecs[??]\n");
@@ -466,6 +470,7 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
   if((bd->multiCnt=buf16[47]&0xff) > 0)
   {
     printf("INFO:BDHDD:ID:47: READ/WRITE MULTIPLE[0x%x]\n",buf16[47]);
+#ifdef BDHDD_CFG_RWMULTIPLE
     if((ret=bdhdd_readyforcmd(bd,devId,BDHDD_CFG_LBA,0)) != 0) return ret;
     BDHDD_WRITE8(BDHDD_CMDBR_SECCNT,bd->multiCnt);
     if(bdhdd_sendcmd(bd,BDHDD_CMD_SETMULTIPLEMODE,&iStat,&iError, 
@@ -475,6 +480,7 @@ int bdhdd_init(bdkT *bd, char *secBuf, int grpId, int devId)
       return -ERROR_FAILED;
     }
     fprintf(stderr,"INFO:BDHDD: SETMULTIPLEMODE set\n");
+#endif
   }
   else
   {
@@ -517,15 +523,22 @@ int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
 #endif
 
   iBuf=0;
-  iLoops = (count/256);
-  if((count%256) != 0)
+  iLoops = (count/BDHDD_SECCNT_USE);
+  if((count%BDHDD_SECCNT_USE) != 0)
     iLoops++;
   for(iLoop=0;iLoop<iLoops;iLoop++)
   {
-    if(count < 256) 
+#if BDHDD_SECCNT_MAX == BDHDD_SECCNT_USE
+    if(count < BDHDD_SECCNT_MAX)
       iCurSecs = count;
     else
       iCurSecs = 0;
+#else
+    if(count < BDHDD_SECCNT_USE)
+      iCurSecs = count;
+    else
+      iCurSecs = BDHDD_SECCNT_USE;
+#endif
 #if DEBUG_PRINT_BDHDD > 25
     printf("INFO:BDHDD:get: curStartSec[%ld] remainingCount[%ld]\n",sec,count);
 #endif
@@ -547,7 +560,7 @@ int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
       fprintf(stderr,"ERR:BDHDD: During READSECTORS cmd\n");
       return -ERROR_FAILED;
     }
-    if(iCurSecs == 0) iCurSecs = 256;
+    if(iCurSecs == 0) iCurSecs = BDHDD_SECCNT_MAX;
 #ifdef BDHDD_CFG_RWMULTIPLE
     for(iSec=0;iSec<iCurSecs;iSec+=bd->multiCnt)
 #else
@@ -603,7 +616,7 @@ int bdhdd_cleanup(bdkT *bd)
   return 0;
 }
 
-int bdhdd_setup(bdkT *bdk)
+void bdhdd_info()
 {
 #ifdef BDHDD_CFG_RWMULTIPLE
   fprintf(stderr,"INFO:BDHDD: CFG_RWMULTIPLE active\n");
@@ -616,6 +629,11 @@ int bdhdd_setup(bdkT *bdk)
 #endif
   if(BDHDD_CFG_LBA)
     fprintf(stderr,"INFO:BDHDD: LBA active\n");
+}
+
+int bdhdd_setup(bdkT *bdk)
+{
+  bdhdd_info();
   bdk->init = bdhdd_init;
   bdk->cleanup = bdhdd_cleanup;
   bdk->reset = bdhdd_reset;

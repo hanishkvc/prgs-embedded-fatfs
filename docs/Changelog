@@ -10,6 +10,91 @@ ToDo
 * have to update fatfs->getfileinfo so that it doesn't convert the 16bit
   unicode to 8bit ascii.
 
+19Nov2004
+* Added seperate PA_MEMREAD/WRITE8/16 routines and made BDHDD_READ/WRITE
+  pick from these for MEM based BDHDD_ATA accesses. So that those parts
+  of bdhdd.x which access non BDHDD_ATA registers use PA_MEMREAD/WRITE
+  instead of BDHDD_READ/WRITE.
+  This change required for devices which are interfaced improperly
+  like say a bus with only 16bit addresses.
+
+11Nov2004
+* Added support for MemCARD3PCtlr based CF access in some DM270 boards.
+  However in the process found that the MemCARD3PCtlr seems to be depending
+  on a synchronous transfer of data at a predefined (???) fixed rate.
+  So for some EMIF CF Cycle timings it works for other either faster
+  or slower it doesn't work. And even in the case where its working
+  Its not consistent, as there is some loss of words inbetween.
+  * Partialy ok behaviour is for => 0x1112, 0x0e07, 0x1331
+  * Also reset using the DevCtrl bit doesn't seem to have much effect
+  on MemCARD3PCtlr, as it returns telling success/failure but its state doesn't
+  seem to change before or after this reset.
+  * Also as words seems to be lost during the transfer, as far as MemCARD3PCtlr
+  is concerned the transfer is finished before the host thinks so. So
+  currently for the set EMIF CF timings a seccnt value of 160 seems to
+  work. If its set beyond that then by the time the last sector is to be
+  read by host, MemCARD3PCtlr is finished with data tranfer so it doesn't set 
+  the DRQ bit, but rather becomes ready to recieve the next command. 
+* If we set seccnt=1, then we get the best consistent reads. For each
+  increase in seccnt, the consistancy of reads goes on falling.
+
+
+07Nov2004
+* Moved pakananosleep and starttime, stoptimedisp to linuxutils.x
+  Updated files to follow this.
+* Based on Profiles It seems like
+  * 1MB databuffer based speeds are around 80%-94% of 4MB databuffer.
+* Added support for testing readspeed of fatfs files using different
+  databuffer sizes automatically.
+
+06Nov2004
+* Made the total cycle width less by 5 cycles. Not sure if writes
+  will have a issue with this, as write is not yet implemented cann't tell. 
+  Hope asking CFRDY to be checked would extend the CF cycles if required - 
+  Have to cross verify.
+* Profiles based on this update, STILL USING MANUAL STOPWATCH
+  **** EMIF CF Cycle time => 0x0708 0x0401 0x1110 ****
+  { BlockDev level tested using read of 80000 Sectors }
+  { FatFs level tested using read of 160MB contiguous file }
+  * For <Sandisk 1GB CF> [ PIO2, No APIO Info ]
+    At BlockDev => 7.23-7.37 MB/Sec [4.25 MB/Sec]
+    At FatFs    => 6.83-6.92 MB/Sec (4MB databuffer) [4.00 MB/Sec]
+                   5.42-5.47 MB/Sec (1MB databuffer) [3.48 MB/Sec]
+  * For <Transcend 512MB CF> [ PIO2, No APIO Info ]
+    { This CF had many badsectors so that could be the reason
+      for large diffs in speed  between different levels }
+    At BlockDev => 5.35-5.58 MB/Sec [4.00 MB/Sec]
+    At FatFS    => 4.38-4.40 MB/Sec (4MB databuffer) [3.48 MB/Sec]
+                   2.63-2.64 MB/Sec (1MB databuffer) [2.23 MB/Sec]
+  * For <Transcend 256MB CF> [ PIO2, No APIO Info ]
+    { FatFS level used 60MB Fragmented file }
+    At BlockDev => 5.35-5.50 MB/Sec
+    At FatFS    => 5.08-5.18 MB/Sec (4MB databuffer)
+                   4.22-4.25 MB/Sec (1MB databuffer)
+  * For <Kingston 256MB CF> [ PIO1, No APIO Info ]
+    { FatFS level used 7MB contiguous file }
+    At BlockDev => 3.20 MB/Sec []
+    At FatFS    => 2.66-3.00 MB/Sec (4MB databuffer)
+                   2.66 MB/Sec      (1MB databuffer)
+                   2.38-2.66 MB/Sec (256KB databuffer)
+  * For <Sandisk 64MB CF> [ PIO1, No APIO Info ] >> SLOWEST FOUND TILL DATE <<
+    { FatFS level used 8MB contiguous file }
+    At BlockDev => 1.96-1.99 MB/Sec []
+    At FatFs    => 1.61-1.80 MB/Sec (4MB databuffer) []
+                   1.52-1.68 MB/Sec (1MB databuffer) []
+                   ~same as above   (512KB databuffer) []
+* Added support for extracting file to Standard Output in fileExtract menu
+  if STDOUT is specified as the destination file. During this process
+  found that the DM270 target uart seems to be lossing characters 
+  once in a while.
+* Added logic to calculate SIMPLE CHECKSUM of files either in the normal
+  system filesystem or my fatfs filesystem.
+  ON VERIFYING THE DATA INTEGRITY OF THE FILES READ USING FATFS AND
+  FAST READ LOGIC BASED CF DRIVER of BDHDD.X, IT WAS FOUND THAT THERE IS 
+  NO CORRUPTION OF DATA EVEN AT HIGH SPEEDS. THATS COOL.
+* FIXME: Found that the reset logic is hanging on DM270 CFs, to verify
+  as to where and fix it later.
+
 04Nov2004, 05Nov2004-0100
 * Note that the <Sandisk 1GB CF>, <Transcend 512MB CF> and 
   <Transcend 256MB CF> support upto PIO2 mode. 
@@ -246,6 +331,7 @@ InBetween
       * FIXME: In future we can make the FAT table handling flexible
         i.e Either Full FAT table could be in Memory or we could load
 	parts of FAT Table as required by updating this function.
+        - FIXED around 11Oct2004
   * Updated other parts so that they use this mechanism
 * Added support to check BlockDev sector size matches FatFS sector size
 * Partiton or Physical volume size is embedded in TFat structure and 

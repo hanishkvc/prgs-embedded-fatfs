@@ -1,6 +1,6 @@
 /*
  * fatfs.h - library for working with fat filesystem
- * v14Oct2004_1343
+ * v06Nov2004_1743
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -171,7 +171,8 @@ int fatfs_cleanup(struct TFat *fat);
 /* From fsutils */
 /* partNo starts from 0 */
 int fsutils_mount(bdkT *bd, int bdGrpId, int bdDevId, int partNo,
-      struct TFat *fat, struct TFatBuffers *fatBuffers, int forceMbr);
+      struct TFat *fat, struct TFatBuffers *fatBuffers, 
+      int forceMbr, int forceReset);
 int fsutils_umount(bdkT *bd, struct TFat *fat);
 
 /* Notes

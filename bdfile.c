@@ -1,6 +1,6 @@
 /*
  * bdfile.c - library for working with a linux loop based filesystem file
- * v27Oct2004_0007
+ * v06Nov2004_1707
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -19,7 +19,7 @@
 #include <errs.h>
 #include <utilsporta.h>
 
-int bdf_init(bdkT *bd, char *secBuf, int grpId, int devId)
+int bdf_init(bdkT *bd, char *secBuf, int grpId, int devId, int reset)
 {
 #ifdef BDFILE_FILE_LSEEK64
   fprintf(stderr,"INFO:BDFILE: using LSEEK64\n");
@@ -45,18 +45,6 @@ int bdf_get_sectors(bdkT *bd, long sec, long count, char*buf)
   printf("INFO:bdfile: sec[%ld] count[%ld]\n", sec, count);
 #endif
 
-/*
-#ifdef BDFILE_FILE__LLSEEK
-  {
-  long long fOffset;
-  unsigned long fOffsetH, fOffsetL;
-  fOffset = (long long)sec*bd->secSize;
-  fOffsetH = (fOffset >> 32) & 0xFFFFFFFF;
-  fOffsetL = fOffset & 0xFFFFFFFF;
-  res = _llseek((int)bd->u1,fOffsetH,fOffsetL,&fOffset,SEEK_SET);
-  }
-#endif
-*/
 #ifdef BDFILE_FILE_LSEEK64
   {
   long long fOffset;

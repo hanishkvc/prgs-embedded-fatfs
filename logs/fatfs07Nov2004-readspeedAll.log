@@ -1,0 +1,252 @@
+KINGSTON-256MB CF
+****IDENTIFYDEVICE****
+INFO:BDHDD:ID: numLogical Cyl[695] Heads[15] Secs[48]
+INFO:BDHDD:ID: Firmware revision [eR v.300]
+INFO:BDHDD:ID: Model number [iHathc iXX2M3.0.                        ]
+INFO:BDHDD:ID:51:OldPIOMode Supported [1:0x100]
+INFO:BDHDD:ID:53:FieldValidity AdvancedPIO [0:0x1]
+INFO:BDHDD:ID:--:APIO 64[0] 65[0] 66[0] 67[0] 68[0]
+INFO:BDHDD:ID: LBA Supported, totalUserAddressableSecs[??]
+[v07Nov2004_1330]========curDir [DOCS]========
+enter src file for read speed test:DM320D~1.ZIP
+
+testfat:readspeedALL: BufSize [4194304]
+tv1 [567 sec: 870290 usec] tv2 [573 sec: 130285 usec]
+fileSize[7259184] time[5259995]usecs readSpeed/msec[1380]
+
+testfat:readspeedALL: BufSize [2097152]
+tv1 [573 sec: 160283 usec] tv2 [578 sec: 470289 usec]
+fileSize[7259184] time[5310006]usecs readSpeed/msec[1367]
+
+testfat:readspeedALL: BufSize [1048576]
+tv1 [578 sec: 500288 usec] tv2 [583 sec: 880283 usec]
+fileSize[7259184] time[5379995]usecs readSpeed/msec[1349]
+
+testfat:readspeedALL: BufSize [524288]
+tv1 [583 sec: 910281 usec] tv2 [589 sec: 460283 usec]
+fileSize[7259184] time[5550002]usecs readSpeed/msec[1307]
+
+testfat:readspeedALL: BufSize [262144]
+tv1 [589 sec: 490281 usec] tv2 [595 sec: 370288 usec]
+fileSize[7259184] time[5880007]usecs readSpeed/msec[1234]
+
+testfat:readspeedALL: BufSize [131072]
+tv1 [595 sec: 400286 usec] tv2 [601 sec: 920280 usec]
+fileSize[7259184] time[6519994]usecs readSpeed/msec[1113]
+
+testfat:readspeedALL: BufSize [65536]
+tv1 [601 sec: 950279 usec] tv2 [609 sec: 800284 usec]
+fileSize[7259184] time[7850005]usecs readSpeed/msec[924]
+
+Sandisk 1GB CF
+****IDENTIFYDEVICE****
+INFO:BDHDD:ID: numLogical Cyl[2025] Heads[16] Secs[63]
+INFO:BDHDD:ID: Firmware revision [400//560]
+INFO:BDHDD:ID: Model number [ASSMNU GFCA/AT                          ]
+INFO:BDHDD:ID:51:OldPIOMode Supported [2:0x200]
+INFO:BDHDD:ID:53:FieldValidity AdvancedPIO [0:0x1]
+INFO:BDHDD:ID:--:APIO 64[0] 65[0] 66[0] 67[0] 68[0]
+INFO:BDHDD:ID: LBA Supported, totalUserAddressableSecs[??]
+S
+enter src file for read speed test:160M.RAN
+
+testfat:readspeedALL: BufSize [4194304]
+tv1 [709 sec: 170290 usec] tv2 [766 sec: 130279 usec]
+fileSize[167765312] time[56959989]usecs readSpeed/msec[2945]
+
+testfat:readspeedALL: BufSize [2097152]
+tv1 [766 sec: 170289 usec] tv2 [828 sec: 270290 usec]
+fileSize[167765312] time[62100001]usecs readSpeed/msec[2701]
+
+testfat:readspeedALL: BufSize [1048576]
+tv1 [828 sec: 300288 usec] tv2 [900 sec: 530285 usec]
+fileSize[167765312] time[72229997]usecs readSpeed/msec[2322]
+
+testfat:readspeedALL: BufSize [524288]
+tv1 [900 sec: 560283 usec] tv2 [993 sec: 10282 usec]
+fileSize[167765312] time[92449999]usecs readSpeed/msec[1814]
+
+testfat:readspeedALL: BufSize [262144]
+tv1 [993 sec: 40280 usec] tv2 [1125 sec: 940288 usec]
+fileSize[167765312] time[132900008]usecs readSpeed/msec[1262]
+
+testfat:readspeedALL: BufSize [131072]
+tv1 [1125 sec: 970287 usec] tv2 [1339 sec: 720289 usec]
+fileSize[167765312] time[213750002]usecs readSpeed/msec[784]
+
+testfat:readspeedALL: BufSize [65536]
+tv1 [1339 sec: 750287 usec] tv2 [1715 sec: 360287 usec]
+fileSize[167765312] time[375610000]usecs readSpeed/msec[446]
+
+
+Sandisk 64MB CF
+****IDENTIFYDEVICE****
+INFO:BDHDD:ID: numLogical Cyl[490] Heads[8] Secs[32]
+INFO:BDHDD:ID: Firmware revision [dV g.112]
+INFO:BDHDD:ID: Model number [aSDnsi kDSFC-B46                        ]
+INFO:BDHDD:ID:51:OldPIOMode Supported [1:0x100]
+INFO:BDHDD:ID:53:FieldValidity AdvancedPIO [0:0x1]
+INFO:BDHDD:ID:--:APIO 64[0] 65[0] 66[0] 67[0] 68[0]
+INFO:BDHDD:ID: LBA Supported, totalUserAddressableSecs[??]
+INFO:BDHDD:ID:47: READ/WRITE MULTIPLE[0x1]
+b
+BlockDev raw speed test for [80000] sectors
+tv1 [1882 sec: 850280 usec] tv2 [1930 sec: 390286 usec]
+NumSecs[80000] time[47540006]usecs readSpeed/msec[861]
+
+S
+enter src file for read speed test:COPYOF~2.AVI
+
+testfat:readspeedALL: BufSize [4194304]
+tv1 [1964 sec: 660290 usec] tv2 [1974 sec: 860286 usec]
+fileSize[8490794] time[10199996]usecs readSpeed/msec[832]
+
+testfat:readspeedALL: BufSize [2097152]
+tv1 [1974 sec: 890284 usec] tv2 [1985 sec: 310284 usec]
+fileSize[8490794] time[10420000]usecs readSpeed/msec[814]
+
+testfat:readspeedALL: BufSize [1048576]
+tv1 [1985 sec: 340282 usec] tv2 [1996 sec: 180279 usec]
+fileSize[8490794] time[10839997]usecs readSpeed/msec[783]
+
+testfat:readspeedALL: BufSize [524288]
+tv1 [1996 sec: 220289 usec] tv2 [2007 sec: 890283 usec]
+fileSize[8490794] time[11669994]usecs readSpeed/msec[727]
+
+testfat:readspeedALL: BufSize [262144]
+tv1 [2007 sec: 920281 usec] tv2 [2021 sec: 300287 usec]
+fileSize[8490794] time[13380006]usecs readSpeed/msec[634]
+
+testfat:readspeedALL: BufSize [131072]
+tv1 [2021 sec: 330286 usec] tv2 [2038 sec: 60283 usec]
+fileSize[8490794] time[16729997]usecs readSpeed/msec[507]
+
+testfat:readspeedALL: BufSize [65536]
+tv1 [2038 sec: 90280 usec] tv2 [2061 sec: 700288 usec]
+fileSize[8490794] time[23610008]usecs readSpeed/msec[359]
+
+
+Transcend 256MB CF
+****IDENTIFYDEVICE****
+INFO:BDHDD:ID: numLogical Cyl[984] Heads[16] Secs[32]
+INFO:BDHDD:ID: Firmware revision [N2-39052]
+INFO:BDHDD:ID: Model number [rTnacsne d                              ]
+INFO:BDHDD:ID:51:OldPIOMode Supported [2:0x200]
+INFO:BDHDD:ID:53:FieldValidity AdvancedPIO [0:0x1]
+INFO:BDHDD:ID:--:APIO 64[0] 65[0] 66[0] 67[0] 68[0]
+INFO:BDHDD:ID: LBA Supported, totalUserAddressableSecs[??]
+INFO:BDHDD:ID:47: READ/WRITE MULTIPLE[0x1]
+b
+BlockDev raw speed test for [80000] sectors
+tv1 [2324 sec: 740280 usec] tv2 [2341 sec: 630287 usec]
+NumSecs[80000] time[16890007]usecs readSpeed/msec[2425]
+
+S
+enter src file for read speed test:MM.VMW
+
+testfat:readspeedALL: BufSize [4194304]
+tv1 [2363 sec: 750279 usec] tv2 [2390 sec: 480280 usec]
+fileSize[59759544] time[26730001]usecs readSpeed/msec[2235]
+
+testfat:readspeedALL: BufSize [2097152]
+tv1 [2390 sec: 520289 usec] tv2 [2419 sec: 260287 usec]
+fileSize[59759544] time[28739998]usecs readSpeed/msec[2079]
+
+testfat:readspeedALL: BufSize [1048576]
+tv1 [2419 sec: 290286 usec] tv2 [2451 sec: 890290 usec]
+fileSize[59759544] time[32600004]usecs readSpeed/msec[1833]
+
+testfat:readspeedALL: BufSize [524288]
+tv1 [2451 sec: 920288 usec] tv2 [2492 sec: 190290 usec]
+fileSize[59759544] time[40270002]usecs readSpeed/msec[1483]
+
+testfat:readspeedALL: BufSize [262144]
+tv1 [2492 sec: 220288 usec] tv2 [2547 sec: 820281 usec]
+fileSize[59759544] time[55599993]usecs readSpeed/msec[1074]
+
+testfat:readspeedALL: BufSize [131072]
+tv1 [2547 sec: 850279 usec] tv2 [2634 sec: 150290 usec]
+fileSize[59759544] time[86300011]usecs readSpeed/msec[692]
+
+testfat:readspeedALL: BufSize [65536]
+tv1 [2634 sec: 180288 usec] tv2 [2782 sec: 130288 usec]
+fileSize[59759544] time[147950000]usecs readSpeed/msec[403]
+
+
+Transcend 512MB CF
+****IDENTIFYDEVICE****
+INFO:BDHDD:ID: numLogical Cyl[999] Heads[16] Secs[63]
+INFO:BDHDD:ID: Firmware revision [N2-39052]
+INFO:BDHDD:ID: Model number [rTnacsne d                              ]
+INFO:BDHDD:ID:51:OldPIOMode Supported [2:0x200]
+INFO:BDHDD:ID:53:FieldValidity AdvancedPIO [0:0x1]
+INFO:BDHDD:ID:--:APIO 64[0] 65[0] 66[0] 67[0] 68[0]
+INFO:BDHDD:ID: LBA Supported, totalUserAddressableSecs[??]
+INFO:BDHDD:ID:47: READ/WRITE MULTIPLE[0x1]
+b
+BlockDev raw speed test for [80000] sectors
+tv1 [3163 sec: 510280 usec] tv2 [3180 sec: 240279 usec]
+NumSecs[80000] time[16729999]usecs readSpeed/msec[2448]
+
+S
+enter src file for read speed test:160M.RAN
+
+testfat:readspeedALL: BufSize [4194304]
+tv1 [3197 sec: 790290 usec] tv2 [3287 sec: 680287 usec]
+fileSize[167772160] time[89889997]usecs readSpeed/msec[1866]
+
+testfat:readspeedALL: BufSize [2097152]
+tv1 [3287 sec: 710285 usec] tv2 [3397 sec: 740284 usec]
+fileSize[167772160] time[110029999]usecs readSpeed/msec[1524]
+
+testfat:readspeedALL: BufSize [1048576]
+tv1 [3397 sec: 770282 usec] tv2 [3548 sec: 287 usec]
+fileSize[167772160] time[150230005]usecs readSpeed/msec[1116]
+
+testfat:readspeedALL: BufSize [524288]
+tv1 [3548 sec: 30284 usec] tv2 [3778 sec: 660284 usec]
+fileSize[167772160] time[230630000]usecs readSpeed/msec[727]
+
+testfat:readspeedALL: BufSize [262144]
+tv1 [3778 sec: 690282 usec] tv2 [4170 sec: 110288 usec]
+fileSize[167772160] time[391420006]usecs readSpeed/msec[428]
+
+testfat:readspeedALL: BufSize [131072]
+tv1 [4170 sec: 140286 usec] tv2 [4883 sec: 140289 usec]
+fileSize[167772160] time[713000003]usecs readSpeed/msec[235]
+
+testfat:readspeedALL: BufSize [65536]
+tv1 [4883 sec: 170287 usec] tv2 [6240 sec: 380280 usec]
+fileSize[167772160] time[1357209993]usecs readSpeed/msec[123]
+
+S
+enter src file for read speed test:8M.RAN
+
+testfat:readspeedALL: BufSize [4194304]
+tv1 [8392 sec: 210279 usec] tv2 [8395 sec: 760283 usec]
+fileSize[8388608] time[3550004]usecs readSpeed/msec[2362]
+
+testfat:readspeedALL: BufSize [2097152]
+tv1 [8395 sec: 790281 usec] tv2 [8399 sec: 390284 usec]
+fileSize[8388608] time[3600003]usecs readSpeed/msec[2330]
+
+testfat:readspeedALL: BufSize [1048576]
+tv1 [8399 sec: 420282 usec] tv2 [8403 sec: 120283 usec]
+fileSize[8388608] time[3700001]usecs readSpeed/msec[2267]
+
+testfat:readspeedALL: BufSize [524288]
+tv1 [8403 sec: 150281 usec] tv2 [8407 sec: 50280 usec]
+fileSize[8388608] time[3899999]usecs readSpeed/msec[2151]
+
+testfat:readspeedALL: BufSize [262144]
+tv1 [8407 sec: 90289 usec] tv2 [8411 sec: 390285 usec]
+fileSize[8388608] time[4299996]usecs readSpeed/msec[1951]
+
+testfat:readspeedALL: BufSize [131072]
+tv1 [8411 sec: 420283 usec] tv2 [8416 sec: 530283 usec]
+fileSize[8388608] time[5110000]usecs readSpeed/msec[1641]
+
+testfat:readspeedALL: BufSize [65536]
+tv1 [8416 sec: 560281 usec] tv2 [8423 sec: 340285 usec]
+fileSize[8388608] time[6780004]usecs readSpeed/msec[1237]
+

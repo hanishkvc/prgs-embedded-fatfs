@@ -1,6 +1,6 @@
 /*
  * bdhdd.h - library for working with a ide HDD
- * v04Nov2004_1300
+ * v19Nov2004_1312
  * C Hanish Menon, 2004
  * 
  */
@@ -45,11 +45,16 @@
 #endif
 #endif
 
+#define PA_MEMREAD8(A) (*(volatile unsigned char*)(A))
+#define PA_MEMWRITE8(A,V) (*(volatile unsigned char*)(A)=(V))
+#define PA_MEMREAD16(A) (*(volatile unsigned short int*)(A))
+#define PA_MEMWRITE16(A,V) (*(volatile unsigned short int*)(A)=(V))
+
 #ifdef BDHDD_USE_MEMMAPPED
-#define BDHDD_READ8(A) (*(volatile unsigned char*)(A))
-#define BDHDD_WRITE8(A,V) (*(volatile unsigned char*)(A)=(V))
-#define BDHDD_READ16(A) (*(volatile unsigned short int*)(A))
-#define BDHDD_WRITE16(A,V) (*(volatile unsigned short int*)(A)=(V))
+#define BDHDD_READ8(A)     PA_MEMREAD8(A)
+#define BDHDD_WRITE8(A,V)  PA_MEMWRITE8(A,V)
+#define BDHDD_READ16(A)    PA_MEMREAD16(A)
+#define BDHDD_WRITE16(A,V) PA_MEMWRITE16(A,V)
 #define BDHDD_READ16S(PA,BA,C) BDHDD_INSWK(PA,BA,C)
 #else
 #define BDHDD_READ8(A) inb(A)
@@ -72,7 +77,9 @@
 
 #define BDHDD_GRPID_PCIDEPRI 0
 #define BDHDD_GRPID_PCIDESEC 1
-#define BDHDD_GRPID_DM270CF 100
+#define BDHDD_GRPID_DM270CF_FPMC 100
+#define BDHDD_GRPID_DM270CF_MEMCARD3PCTLR 101
+#define BDHDD_GRPID_DM270IDE_FPMC 102
 
 #define BDHDD_IDE0_CMDBR 0x1f0
 #define BDHDD_IDE0_CNTBR 0x3f0
@@ -116,6 +123,9 @@
 #define BDHDD_SRST_DIAGNOSTICS_D0OK 0x81
 
 #define BDHDD_GETSECTOR_LOOPCNT 256
+
+#define BDHDD_SECCNT_MAX 256
+#define BDHDD_SECCNT_USE 1
 
 int bdhdd_setup(bdkT *bdk);
 
