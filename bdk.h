@@ -18,6 +18,7 @@ typedef struct blockDevKT
   int (*init)(struct blockDevKT*, char* secBuf, 
                int grpId, int devId, int reset);
   int (*get_sectors)(struct blockDevKT*, long sec, long count, char* buf); 
+  int (*put_sectors)(struct blockDevKT*, long sec, long count, char* buf); 
   int (*cleanup)(struct blockDevKT*);
   int (*reset)(struct blockDevKT*);
   char name[BDK_DEVNAMELEN];

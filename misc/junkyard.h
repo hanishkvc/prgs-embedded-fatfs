@@ -122,3 +122,37 @@ static inline int bdhdd_checkstatus(bdkT *bd,uint8 cmd,int *iStatus,int *iError,
 
 #else
 
+/*** removed as utilsporta available ***/
+
+int util_memcpy(uint8 *src, uint32 srcLen, uint8 *dest, uint32 destLen)
+{
+  int iLen, iCur, iRet;
+  
+  if(srcLen > destLen)
+  {
+    iLen = destLen;
+    iRet = -1;
+  }
+  else
+  {
+    iLen = srcLen;
+    iRet = 0;
+  }
+  for(iCur=0; iCur < iLen; iCur++)
+    dest[iCur] = src[iCur];
+  return iRet;
+}
+
+int util_strcpy(uint8 *src, uint8 *dest, uint32 destLen)
+{
+  int iCur;
+  for(iCur=0; iCur < destLen; iCur++, src++)
+  {
+    dest[iCur] = *src;
+    if(*src == (uint8)NULL)
+      return 0;
+  }
+  dest[destLen-1] = 0;
+  return -1;
+}
+

@@ -17,8 +17,11 @@ int pa_printstr(const char *str);
 int pa_printstrErr(const char *str);
 
 int pa_printint(const int data);
+int pa_printints(const int data, char *str);
 int pa_printuint(const unsigned int data);
+int pa_printuints(const unsigned int data, char *str);
 int pa_printhex(const unsigned int data);
+int pa_printhexs(const unsigned int data, char *str);
 
 void pa_divmod(int num, int den, int *div, int *rem);
 int pa_mod(int num, int den);

@@ -10,6 +10,174 @@ ToDo
 * have to update fatfs->getfileinfo so that it doesn't convert the 16bit
   unicode to 8bit ascii.
 
+01Feb2005
+* Added write support for ATA devices
+  * bdhdd_put_sectors
+  * bdhdd_outsw routines simple, unrolled and dm270dma
+* Add routine for blockdev write speed check
+* Fixed some compiler warnings triggered by the older compiler
+
+31Jan2005
+* __storefileclus updated wrt
+  * fInfo->updated flag being set (stupidly optimized out yesterday and 
+    then adding a goto which bypassed the optimized setting of this flag)
+    after fInfo->newFileSize is updated due to writing of file data into
+    new clusters.
+  * fromClus being set for all cases of bAllWriten once the logic 
+    enters the Allocate new clusters for the file case. This was the intention
+    even yesterday but was some how missed out while putting the logic.
+* storerootdir and storefat updated such that they don't write beyond their
+  respective boundries as required.
+* fsfreelist of testfat.c updated to display the total free space in the
+  filesystem.
+
+30Jan2005
+* Had forgotten to save the updated FATTable back into block dev after 
+  a file had been modified such that its FATTable entries were modified.
+  *To support this and other FATTable modifications a flag fatUpdated
+  was added to the TFat structure. And fatfs_storefat routine added
+  and called from fatfs_loadfat (required for partly mapped fattables)
+  and fatfs_cleanup.
+  *fatfs_setfatentry logic updated to set the fatUpdated flag 
+  if FATTable is updated.
+  *Another entry curFatStartSec also added to TFat which is used 
+  by fatfs_storefat
+  * FIXED: While saving FATTable to block dev, have to see to it that 
+    I don't write beyond the FATTable, cas currently nSecs to write
+    is calculated blindly using the FATFAT_MAXSIZE, which is ok for
+    loading but not for storing. << FIXED_31Jan2005
+* Generic fatuc routines __getdirbufoffile and __savedirbuf added
+  which are used by fatuc__syncfileinfo for now. Later when routines
+  like deletefile, renamefile etc are added even they could use these.
+* Have also added support for saving rootdir back to block dev if it 
+  has been updated. This is triggered as part of fatfs_cleanup.
+  * FIXED: While saving rootDir to block dev in Fat32, have to see to 
+    it that I don't write beyond the rootDir, cas currently rootDir
+    size is hardcoded to FATROOTDIR_MAXSIZE while calling __storefileclus, 
+    which is ok for loading but not for storing. << FIXED_31Jan2005
+* fatfs__storefileclus_usefileinfo had a issue with writing till EOF
+  or beyond wrt to the fromClus, as fromClus would be invalid. This
+  has been fixed by adding a special interpretation of fromClus value
+  FATFS__STOREFILECLUS_FROMCLUS_ALLOC, which tells the logic that
+  fromClus doesn't contain a valid cluster of the file and that it
+  should allocate new clusters to the file and append it to its end.
+  FIXME: Should have been handled now, with the changes I have done but
+  still have to cross verify once again.
+  Also a Issue with fileSize which is a non multiple of clusSize and 
+  writing till EOF which results in wrong newFileSize has been fixed.
+* As already mentioned fatfs_cleanup now calls fat->storerootdir and
+  fatfs_storefat to take care of write support added to the filesystem.
+* FIXED: Also Changes to a file in RootDir is requiring that this be
+  done twice (as of now tested over two different sessions)
+  before it gets updated in block dev for future use.
+  FIXED_31Jan2005: Fixing the storefat to store only the FATTable and 
+  nothing more seems to have fixed this bug AS WAS INTELLIGENTLY GUESSED.
+* In fileextract2fatfs of testfatuc.c a small correction made so that
+  source file gets opened first and then the destination file, thus
+  directory containing the destination file will be available as part
+  of FUC dirBufs.
+
+29Jan2005
+* fatfs__storefileclus_usefileinfo: Added support for writing cluster aligned 
+  data to a already existing file.
+  It takes care of both the case where the file is written into existing part
+  of file as well as the situation where the file is being appended to (i mean 
+  written following/beyond the current end of file).
+* fatfs__syncfileinfo takes care of udpating any changed file info (currently
+  changed filesize (due to write into file)) in to the corresponding directory 
+  provided this is (1)the current directory or the (2)directory in tempdirbuf 
+  of FUC or (3)the root directory. 
+  Support for updating directory even if its non of the 3 situations mentioned 
+  in previous line requires to be added << FIXME
+  This inturn is used by fatuc_fclose if it finds that the fInfo.updated flag
+  is set, thus updating the fs in the block dev.
+  Note1: for rootdirectory it doesn't save the status back into disk - 
+  to be done in fsutils_umount. << FIXED_30Jan2005
+  Note2: Also in future fatfs__syncfileinfo should take a flag specifying
+  what and all of the fInfo has been updated and then update all the 
+  corresponding entities in the directory entry for the file. << FIXME
+* MANY THINGS HERE TO document LATER, better go to sleep now.
+  >> THEY HAVE BEEN DOCumented on 31Jan2005. <<
+* Also update fatfs_getfileinfo_fromdir to understand the expanded
+  8.3 File name stored as part of TFileInfo. Also a limitation 
+  of this routine interms of restriction on the dirBufSize passed
+  to it has been removed.
+* bdk.h and bdfile.x updated with put_sectors command required
+  for filesystem write support.
+* clusSize calculated during loadbootsector and stored as part of TFat 
+  structure. Similarly count of data clusters is stored in cntDataClus.
+* RDUpdated flag added to TFat so that if root dir (entries) is updated
+  this flag is set to indicate to fatfs_cleanup to take care of saving
+  the root dir back to underlying block dev.
+* Similarly TFileInfo gets
+  * newFileSize used by the file write routines to indicate the new file 
+    size after any writes. Which inturn will be saved back to block dev
+    when file is closed.
+  * updated flag used to tell that this instance of TFileInfo structure
+    as updated data in it which requires to be updated into the 
+    corresponding directory where this file lives. And then saved back
+    to block dev. File write routines will set this flag when writes
+    go beyond the existing EOF and the filesize is needed to be increased.
+* fatfs32_setfatentry also added. Also as these setfatentry routines are
+  accessed thro a generic fat->setfatentry mechanism, they are needed to
+  convert special fat entries like EOF and BADCluster (specified using
+  generic defines) into their(fat16 and fat32) respective value and then
+  store into FATTable.
+* in getoptifreecluslist routine MAYBE we should check for freeclusters 
+  till cntDataClus+2, as DataClus 0 and 1 are special and not part of
+  this cnt<RIGHT ???>. As this is non critical and doesn't affect integrity
+  of the system, we use the safe value of cntDataClus itself.
+* Added fatfs__getlastClus_usefileinfo to get the last cluster associated
+  with a file.
+* Added fatfs__linknewsegment_usefileinfo to added a new set of contiguous
+  clusters to a specified cluster in the file (this is used by the __store
+  fileclus routine and there this specified cluster will be the last cluster 
+  of the file).
+* fatfs_updatedfilesize_indirbuf updates the fileSize of the given filename
+  in the given dirBuf.
+* Removed util_strcpy and util_memcpy logic. Access to these had been replaced 
+  by pa_strncpy and pa_memcpy sometime back.
+* fatuc__changedir and TFatFsUserContext updated such that along with cur and
+  temp DirBufs there is also a cur and temp DirInfo which stores the TFileInfo 
+  data for the current and temp directory buffers maintained in the FUC. 
+  Actually as it stands now instead of wasting space for a full TFileInfo
+  structure to represent the directory info we could have even done with
+  just the Directory's firstClus.
+  This modification was done so that when files/directories get updated
+  they can be propagated back to the fs in the block dev.
+  For this same purpose even fatuc_getfileinfo renamed to fatuc__getfileinfo
+  and updated to retrieve and assign this DirInfo into the new dInfo pointer 
+  passed to it. Now fatuc_getfileinfo is a wrapper to fatuc__getfileinfo where
+  the dInfo retrieved is dropped.
+  This dInfo retrieved by fatuc__getfileinfo in addition to fInfo is used
+  by the fatuc_fopen routine to store the dInfo as part of the new dInfo
+  member added to TFatFile.
+* testfatxxx updated such that there is support for fatuc based
+  (a) copying file from fatfs to a local posix filesystem[cpfp] and
+  (b) copying file within fatfs[cpff]. i.e from fatfs to fatfs 
+      (using the new file write support added)
+* pa_printints, pa_printuints, pa_printhexs added to utilsporta so
+  that now while printing a integer we can also print a associated
+  text string to follow the integer.
+
+
+28-29Jan2005
+* Made BDHDD_SECCNT_USE to 256 from 1
+  This had been set to 1 during testing of MemCARD3PCtlr chip, which had problem
+  working with more than a 1 sector(or maybe few) at a time if CFRDY was set.
+  This inturn had brought the speed of blockdev (inturn) file access down
+  to a great extent(around 50% or more).
+* Added initial support for fs write
+  * Added fatfs_getoptifreeclustlist function to retrieve the list
+    of free clusters in the filesystem
+  * Added fatfs16_setfatentry
+* Updated testfat
+  * Made the menu take words like ls, cd, cp, fsfreelist, etc
+    instead of the previous single letters as commands. Thus 
+    making the menu triggering more sensible.
+  * Also added support for getting the fsfreelist
+  * updated prevClus's to fromClus
+
 27Jan2005
 * Renamed the prevClus of TFatFile structure to the proper name of fromClus
   so also updation to offInFromClus. These variables correspond to the fPos

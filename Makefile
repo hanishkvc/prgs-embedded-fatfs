@@ -2,7 +2,7 @@ CC=$(CROSS)gcc
 CFLAGS = -Wall -g -I .
 CFLAGS = -Wall -O2 -I .
 C_FLAGS=
-arm-elf-C_FLAGS= -Wl,-elf2flt -D PRG_MODE_DM270
+arm-elf-C_FLAGS= -Wl,-elf2flt="-s 262144" -D PRG_MODE_DM270
 CFLAGS += $($(CROSS)C_FLAGS)
 
 PORTACFILES=rwporta.c utilsporta.c rand.c

@@ -1,6 +1,6 @@
 /*
  * bdhdd.c - library for working with a ide hdd
- * v19Nov2004_1332
+ * v01Feb2005_1742
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -58,6 +58,48 @@ static inline void bdhdd_inswk_dm270dma(uint32 port, uint16* buf, int count)
   while(PA_MEMREAD16(DM270_DMACTL)); /* Inefficient CPU Use but for now */
 }
 
+static inline void bdhdd_outswk_dm270dma(uint32 port, uint16* buf, int count)
+{
+
+#ifdef BDHDD_DM270DMA_SAFE
+  int iBuf;
+  /* REFCTL: Bit15-13 = 0,DMAChannel1BetweenEmifAndSDRam */
+  iBuf=PA_MEMREAD16(DM270_REFCTL);
+  PA_MEMWRITE16(DM270_REFCTL,iBuf&0x1fff);
+  /* DMACTL: Bit0 = 1,DMATransfer in progress */
+  if(PA_MEMREAD16(DM270_DMACTL)&0x1)
+  {
+    fprintf(stderr,"ERR:BDHDD:Someother EMIF DMA in progress, quiting\n");
+    exit(-ERROR_FAILED);
+  }
+  /* FIXME: Source, Dest and Size should be multiples of 4 */
+#endif
+  /* DMADEVSEL: Bit6-4 = 5,DMASrcIsSDRam; Bit2-0 = 1,DMADestIsCF */
+  PA_MEMWRITE16(DM270_DMADEVSEL,0x51);
+  /* DMASIZE: */
+  PA_MEMWRITE16(DM270_DMASIZE,count*2);
+  /* DESTADDH: Bit12:=1,FixedAddr, Bit9-0: AddrHigh Relative to CF Region */
+  port -= BDHDD_DM270CF_CMDBR;
+  if(port > 16) /* Not DM270 CF, Maybe later add DM270 IDE support */
+  {
+    fprintf(stderr,"ERR:BDHDD:DM270DMA doesn't support nonCF now, quiting\n");
+    exit(-ERROR_INVALID);
+  }
+  PA_MEMWRITE16(DM270_DESTADDH,0x1000|((port>>16)&0x3ff));
+  PA_MEMWRITE16(DM270_DESTADDL,port&0xffff);
+  /* Source high 10bits and low 16bits */
+  (int32)buf -= DM270_SDRAM_BASE; /* int as addr !> 2GB */
+  PA_MEMWRITE16(DM270_SOURCEADDH,((uint32)buf>>16)&0x3ff);
+  PA_MEMWRITE16(DM270_SOURCEADDL,(uint32)buf&0xffff); 
+#if DEBUG_PRINT_BDHDD > 5000
+  fprintf(stderr,"INFO:BDHDD:DM270DMA:Src[0x%lx] Dest[%ld] count [%d]\n",
+    (uint32)buf,port,count);
+#endif
+  /* DMACTL: Bit0 = 1,Start DMA */
+  PA_MEMWRITE16(DM270_DMACTL,0x1);
+  while(PA_MEMREAD16(DM270_DMACTL)); /* Inefficient CPU Use but for now */
+}
+
 #endif
 
 static inline void bdhdd_inswk_simple(uint32 port, uint16* buf, int count)
@@ -65,6 +107,13 @@ static inline void bdhdd_inswk_simple(uint32 port, uint16* buf, int count)
   int iCur;
   for(iCur=0;iCur<count;iCur++)
     buf[iCur] = BDHDD_READ16(port);
+}
+
+static inline void bdhdd_outswk_simple(uint32 port, uint16* buf, int count)
+{
+  int iCur;
+  for(iCur=0;iCur<count;iCur++)
+    BDHDD_WRITE16(port,buf[iCur]);
 }
 
 static inline void bdhdd_inswk_unrolled(uint32 port, uint16* buf, int count)
@@ -96,6 +145,37 @@ static inline void bdhdd_inswk_unrolled(uint32 port, uint16* buf, int count)
   }
   for(iWord=0;iWord<iRem;iWord++)
     buf[iBuf++]=BDHDD_READ16(port);
+}
+
+static inline void bdhdd_outswk_unrolled(uint32 port, uint16* buf, int count)
+{
+  int iBuf,iWord,iLoops,iRem;
+  iBuf = 0;
+  iLoops = count/16; iRem = count%16;
+  for(iWord=0;iWord<iLoops;iWord++)
+  {
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+    BDHDD_WRITE16(port,buf[iBuf++]);
+  }
+  for(iWord=0;iWord<iRem;iWord++)
+    BDHDD_WRITE16(port,buf[iBuf++]);
 }
 
 static inline int bdhdd_altstat_waitifbitset(bdkT *bd, char bit, int *iStat, int waitCnt)
@@ -519,7 +599,7 @@ int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
   uint16 *buf16 = (uint16*)buf;
 
 #if (DEBUG_PRINT_BDHDD > 15)
-  printf("INFO:BDHDD: sec[%ld] count[%ld]\n", sec, count);
+  printf("INFO:BDHDD:get sec[%ld] count[%ld]\n", sec, count);
 #endif
 
   iBuf=0;
@@ -607,6 +687,101 @@ int bdhdd_get_sectors(bdkT *bd, long sec, long count, char*buf)
   return 0;
 }
 
+int bdhdd_put_sectors(bdkT *bd, long sec, long count, char*buf)
+{
+  int iBuf, iStat, iError, ret;
+  int iLoops,iCurSecs,iLoop,iSec;
+  uint16 *buf16 = (uint16*)buf;
+
+#if (DEBUG_PRINT_BDHDD > 15)
+  printf("INFO:BDHDD:put sec[%ld] count[%ld]\n", sec, count);
+#endif
+
+  iBuf=0;
+  iLoops = (count/BDHDD_SECCNT_USE);
+  if((count%BDHDD_SECCNT_USE) != 0)
+    iLoops++;
+  for(iLoop=0;iLoop<iLoops;iLoop++)
+  {
+#if BDHDD_SECCNT_MAX == BDHDD_SECCNT_USE
+    if(count < BDHDD_SECCNT_MAX)
+      iCurSecs = count;
+    else
+      iCurSecs = 0;
+#else
+    if(count < BDHDD_SECCNT_USE)
+      iCurSecs = count;
+    else
+      iCurSecs = BDHDD_SECCNT_USE;
+#endif
+#if DEBUG_PRINT_BDHDD > 25
+    printf("INFO:BDHDD:put: curStartSec[%ld] remainingCount[%ld]\n",sec,count);
+#endif
+    if((ret=bdhdd_readyforcmd(bd,bd->devId,BDHDD_CFG_LBA,
+              ((sec&0xf000000)>>24))) != 0) return ret;
+    BDHDD_WRITE8(BDHDD_CMDBR_SECCNT,iCurSecs);
+    BDHDD_WRITE8(BDHDD_CMDBR_LBA0,(sec&0xff));
+    BDHDD_WRITE8(BDHDD_CMDBR_LBA8,((sec&0xff00)>>8));
+    BDHDD_WRITE8(BDHDD_CMDBR_LBA16,((sec&0xff0000)>>16));
+#ifdef BDHDD_CFG_RWMULTIPLE    
+    if(bdhdd_sendcmd(bd,BDHDD_CMD_WRITEMULTIPLE,&iStat,&iError,
+        BDHDD_WAIT_CMDTIME) != 0)
+#else			    
+    if(bdhdd_sendcmd(bd,BDHDD_CMD_WRITESECTORS,&iStat,&iError,
+        BDHDD_WAIT_CMDTIME) != 0)
+#endif		    
+    {
+      bdhdd_printsignature(bd);
+      fprintf(stderr,"ERR:BDHDD:put During WRITE cmd\n");
+      return -ERROR_FAILED;
+    }
+    if(iCurSecs == 0) iCurSecs = BDHDD_SECCNT_MAX;
+#ifdef BDHDD_CFG_RWMULTIPLE
+    for(iSec=0;iSec<iCurSecs;iSec+=bd->multiCnt)
+#else
+    for(iSec=0;iSec<iCurSecs;iSec++)
+#endif	    
+    {
+      if(iSec > 0)
+      {
+        ret=bdhdd_checkstatus(bd,0xFF,&iStat,&iError,BDHDD_WAIT_CMDTIME);
+        if(ret != 0)
+        {
+          fprintf(stderr,"ERR:BDHDD:put middle of WRITE, iStat[0x%x] iLoop[%d] iSec[%d]\n",iStat,iLoop,iSec);
+          return ret;
+        }
+      }
+      if((iStat&BDHDD_STATUS_DRQBIT)==0)
+      {
+        fprintf(stderr,"ERR:BDHDD:put WRITE DRQ not set, iStat[0x%x] iLoop[%d] iSec[%d]\n",iStat,iLoop,iSec);
+        return -ERROR_FAILED;
+      }
+#ifdef BDHDD_CFG_RWMULTIPLE
+      {
+      int iMulti;      
+      iMulti = iCurSecs - iSec;
+      if(iMulti > bd->multiCnt) iMulti = bd->multiCnt;
+      BDHDD_WRITE16S(BDHDD_CMDBR_DATA,&buf16[iBuf],256*iMulti);
+      iBuf+=256*iMulti;
+      }
+#else
+      BDHDD_WRITE16S(BDHDD_CMDBR_DATA,&buf16[iBuf],256);
+      iBuf+=256;
+#endif      
+#ifdef BDHDD_BENCHMARK
+      iBuf = 0;
+#endif      
+    }
+    count-=iCurSecs;
+    sec+=iCurSecs;
+  }
+#ifdef BDHDD_CHECK_DRQAFTERCMDCOMPLETION  
+  if(bdhdd_altstat_waitifbitset(bd,BDHDD_STATUS_DRQBIT,&iStat,BDHDD_WAIT_AFTERCMDCOMPLETION) != 0)
+    fprintf(stderr,"DEBUG:BDHDD:put: DRQ set even after cmd completion\n");
+#endif
+  return 0;
+}
+
 #ifndef BDHDD_BENCHMARK
 
 #include "bdhdd_benchmark.c"
@@ -638,6 +813,7 @@ int bdhdd_setup(bdkT *bdk)
   bdk->cleanup = bdhdd_cleanup;
   bdk->reset = bdhdd_reset;
   bdk->get_sectors = bdhdd_get_sectors;
+  bdk->put_sectors = bdhdd_put_sectors;
   bdk->get_sectors_benchmark = bdhdd_get_sectors_benchmark;
   pa_strncpy(bdk->name,"bdhdd",BDK_DEVNAMELEN);
   return 0;

@@ -29,6 +29,12 @@ int pa_printint(const int data)
   return pa_printstr(sInt);
 }
 
+int pa_printints(const int data, char *str)
+{
+  pa_printint(data); pa_printstr(str);
+  return 0;
+}
+
 int pa_printuint(const unsigned int data)
 {
   char sInt[32];
@@ -37,12 +43,24 @@ int pa_printuint(const unsigned int data)
   return pa_printstr(sInt);
 }
 
+int pa_printuints(const unsigned int data, char *str)
+{
+  pa_printuint(data); pa_printstr(str);
+  return 0;
+}
+
 int pa_printhex(const unsigned int data)
 {
   char sInt[32];
   pa_uint32TOhexstr(sInt,data);
   pa_printstr("0x");
   return pa_printstr(sInt);
+}
+
+int pa_printhexs(const unsigned int data, char *str)
+{
+  pa_printhex(data); pa_printstr(str);
+  return 0;
 }
 	  
 void pa_divmod(int num, int den, int* div, int* rem)

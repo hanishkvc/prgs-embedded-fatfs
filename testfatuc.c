@@ -2,7 +2,7 @@
 //#define TESTFATUC_BUFSIZE_SUB 0
 #define TESTFATUC_BUFSIZE_SUB (FATFSCLUS_MAXSIZE*2+11)
 
-int testfatuc_fileextract(struct TFatFsUserContext *uc, 
+int testfatuc_fileextract2posix(struct TFatFsUserContext *uc, 
       char *sFile, char *dFile)
 {
   FILE *fDest;
@@ -10,7 +10,7 @@ int testfatuc_fileextract(struct TFatFsUserContext *uc,
   int res, ret, resFW, fId;
   uint8 *nBuf;
 
-  printf("testfatuc:INFO: fileextract [%s] to [%s]\n",sFile,dFile);
+  printf("testfatuc:INFO: fileextract2posix [%s] to [%s]\n",sFile,dFile);
   if(strncmp(dFile,"STDOUT",6) != 0)
   {
     fDest = fopen(dFile, "w");
@@ -53,6 +53,59 @@ int testfatuc_fileextract(struct TFatFsUserContext *uc,
   if(res == -ERROR_FATFS_EOF)
     ret = 0;
   return ret;
+}
+
+int testfatuc_fileextract2fatfs(struct TFatFsUserContext *uc, 
+      char *sFile, char *dFile)
+{
+  uint32 dataRead, lastClus, fromClus=0, totalClusWriten;
+  int res, fId, fDId;
+  uint8 *nBuf;
+
+  printf("testfatuc:INFO: fileextract2fatfs [%s] to [%s]\n",sFile,dFile);
+  if(fatuc_fopen(uc, sFile, &fId) != 0)
+  {
+    printf("testfatuc:ERROR:fileextract: opening src [%s] file\n", sFile);
+    return -1;
+  }
+  if(fatuc_fopen(uc,dFile, &fDId) != 0)
+  {
+    printf("testfatuc:ERROR:fileextract: opening dest [%s] file\n", dFile);
+    return -1;
+  }
+  fatfs_checkbuf_forloadfileclus(uc->fat, gDataBufSize);
+  while(1)
+  {
+    res=fatuc_fread(uc, fId, gDataBuf, gDataBufSize,
+      gDataBufSize,
+      //gDataBufSize-TESTFATUC_BUFSIZE_SUB,
+      &nBuf, &dataRead);
+    if(res == -ERROR_FATFS_EOF)
+      break;
+    if(res != 0)
+    {
+      printf("testfatuc:ERROR:fileextract: reading source\n");
+      break;
+    }
+#if DEBUG_TESTFAT > 15    
+    else
+      printf("testfatuc:INFO: fatuc_fread dataRead[%ld] fPos[%ld]\n", 
+        dataRead, uc->files[fId].fPos);
+#endif    
+    res=fatfs__storefileclus_usefileinfo(uc->fat, &uc->files[fDId].fInfo, 
+            gDataBuf, dataRead, 
+            &totalClusWriten, &lastClus, &fromClus);
+    if(res != 0)
+    {
+      printf("testfatuc:ERROR:fileextract: writing dest\n");
+      break;
+    }
+  }
+  fatuc_fclose(uc, fId);
+  fatuc_fclose(uc, fDId);
+  if(res == -ERROR_FATFS_EOF)
+    res = 0;
+  return res;
 }
 
 int testfatuc_checkreadspeed(struct TFatFsUserContext *uc, 

@@ -1,6 +1,6 @@
 /*
  * bdhdd.h - library for working with a ide HDD
- * v19Nov2004_1312
+ * v01Feb2005_1732
  * C Hanish Menon, 2004
  * 
  */
@@ -33,17 +33,22 @@
 
 #ifdef BDHDD_USE_INSWK_SIMPLE
 #define BDHDD_INSWK bdhdd_inswk_simple
+#define BDHDD_OUTSWK bdhdd_outswk_simple
 #else
 #ifdef BDHDD_USE_INSWK_UNROLLED
 #define BDHDD_INSWK bdhdd_inswk_unrolled
+#define BDHDD_OUTSWK bdhdd_outswk_unrolled
 #else
 #ifdef BDHDD_USE_INSWK_DM270DMA
 #define BDHDD_INSWK bdhdd_inswk_dm270dma
+#define BDHDD_OUTSWK bdhdd_outswk_dm270dma
 #else
 #define BDHDD_INSWK insw
+#define BDHDD_OUTSWK bdhdd_outswk_unrolled
 #endif
 #endif
 #endif
+
 
 #define PA_MEMREAD8(A) (*(volatile unsigned char*)(A))
 #define PA_MEMWRITE8(A,V) (*(volatile unsigned char*)(A)=(V))
@@ -56,12 +61,14 @@
 #define BDHDD_READ16(A)    PA_MEMREAD16(A)
 #define BDHDD_WRITE16(A,V) PA_MEMWRITE16(A,V)
 #define BDHDD_READ16S(PA,BA,C) BDHDD_INSWK(PA,BA,C)
+#define BDHDD_WRITE16S(PA,BA,C) BDHDD_OUTSWK(PA,BA,C)
 #else
 #define BDHDD_READ8(A) inb(A)
 #define BDHDD_WRITE8(A,V) outb(V,A)
 #define BDHDD_READ16(A) inw(A)
 #define BDHDD_WRITE16(A,V) outw(V,A)
 #define BDHDD_READ16S(PA,BA,C) BDHDD_INSWK(PA,BA,C)
+#define BDHDD_WRITE16S(PA,BA,C) BDHDD_OUTSWK(PA,BA,C)
 #endif
 
 #define BDHDD_WAIT_CMDINIT 3000000
@@ -118,6 +125,9 @@
 #define BDHDD_CMD_READSECTORSNORETRIES 0x21
 #define BDHDD_CMD_READMULTIPLE 0xC4
 #define BDHDD_CMD_SETMULTIPLEMODE 0xC6
+#define BDHDD_CMD_WRITESECTORS 0x30
+#define BDHDD_CMD_WRITESECTORSNORETRIES 0x31
+#define BDHDD_CMD_WRITEMULTIPLE 0xC5
 
 #define BDHDD_SRST_DIAGNOSTICS_ALLOK 0x01
 #define BDHDD_SRST_DIAGNOSTICS_D0OK 0x81
@@ -125,7 +135,7 @@
 #define BDHDD_GETSECTOR_LOOPCNT 256
 
 #define BDHDD_SECCNT_MAX 256
-#define BDHDD_SECCNT_USE 1
+#define BDHDD_SECCNT_USE 256
 
 int bdhdd_setup(bdkT *bdk);
 

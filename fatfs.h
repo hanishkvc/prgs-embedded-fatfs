@@ -8,7 +8,7 @@
 #ifndef _FATFS_H_
 #define _FATFS_H_
 
-#define FATFS_LIBVER "v27Jan2005_2106"
+#define FATFS_LIBVER "v31Jan2005_1619"
 
 #include <rwporta.h>
 #include <bdk.h>
@@ -69,6 +69,8 @@
 #define FAT32_EOF 0x0FFFFFF8
 #define FAT32_BADCLUSTER 0x0FFFFFF7
 #define FATFS_FREECLUSTER 0x0
+#define FATFS_EOF FAT32_EOF
+#define FATFS_BADCLUSTER FAT32_BADCLUSTER
 
 #define FAT32_EXTFLAGS_ACTIVEFAT(N) ((N)&0xF)
 #define FAT32_FSVER 0x0000
@@ -104,6 +106,8 @@ struct TFileInfo
   char16 lfn[FATFSLFN_SIZE];
   uint16 crtTime, crtDate, lastAccDate, wrtTime, wrtDate;
   uint32 firstClus, fileSize;
+  uint32 newFileSize;
+  int updated;
 };
 
 struct TFatBuffers
@@ -122,10 +126,15 @@ struct TFat
   uint32 rdSize;
   struct TFatBootSector bs;
   uint32 curFatNo, curFatStartEntry, curFatEndEntry, maxFatEntry;
+  uint32 curFatPartStartSecAbs, curFatEndSecAbs;
+  uint32 cntDataClus,clusSize;
+  int RDUpdated, fatUpdated;
   /* Functions */
-  int (*loadrootdir)(struct TFat *fat);
   int (*getfatentry)(struct TFat *fat, uint32 iEntry,
           uint32 *iValue, uint32 *iActual);
+  int (*setfatentry)(struct TFat *fat, uint32 iEntry, uint32 iValue);
+  int (*loadrootdir)(struct TFat *fat);
+  int (*storerootdir)(struct TFat *fat);
   int (*checkfatbeginok)(struct TFat *fat);
 };
 
@@ -141,6 +150,7 @@ struct TFatFile
 	uint32 fPos;
 	int state;
 	uint32 fromClus,offInFromClus;
+	struct TFileInfo dInfo;
 };
 
 struct TFatFsUserContext
@@ -148,11 +158,15 @@ struct TFatFsUserContext
   struct TFat *fat;
   uint8 *curDirBuf;
   uint32 curDirBufLen;
+  struct TFileInfo curDirInfo;
   uint8 *tempDirBuf;
   uint32 tempDirBufLen;
+  struct TFileInfo tempDirInfo;
+  
   struct TFatFile files[FATFSUSERCONTEXT_NUMFILES];
   uint8 sCurDir[FATFSPATHNAME_MAXSIZE];
   uint8 sTempDir[FATFSPATHNAME_MAXSIZE];
+
   uint32 dirBuf1[FATFSUSERCONTEXTDIRBUF_MAXSIZE/4];
   uint32 dirBuf2[FATFSUSERCONTEXTDIRBUF_MAXSIZE/4];
   uint8 pName[FATFSPATHNAME_MAXSIZE];
@@ -167,12 +181,18 @@ int fatfs16_checkfatbeginok(struct TFat *fat);
 int fatfs32_checkfatbeginok(struct TFat *fat);
 int fatfs16_loadrootdir(struct TFat *fat);
 int fatfs32_loadrootdir(struct TFat *fat);
-int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
+int fatfs16_storerootdir(struct TFat *fat);
+int fatfs32_storerootdir(struct TFat *fat);
+int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint32 dirBufSize, 
       struct TFileInfo *fInfo, uint32 *prevPos, int useLFN);
 int fatfs16_getfatentry(struct TFat *fat, uint32 iEntry,
       uint32 *iValue, uint32 *iActual);
+int fatfs16_setfatentry(struct TFat *fat, uint32 iEntry, uint32 iValue);
 int fatfs32_getfatentry(struct TFat *fat, uint32 iEntry, 
       uint32 *iValue, uint32 *iActual);
+int fatfs32_setfatentry(struct TFat *fat, uint32 iEntry, uint32 iValue);
+int fatfs_getoptifreecluslist(struct TFat *fat, struct TClusList *cl,
+      int *clSize, uint32 *fromClus);
 int fatfs_getopticluslist_usefileinfo(struct TFat *fat, 
       struct TFileInfo *fInfo, struct TClusList *cl, int *clSize, 
       uint32 *fromClus);
@@ -183,6 +203,9 @@ int fatfs_loadfileallsec_usefileinfo(struct TFat *fat,
 int fatfs_checkbuf_forloadfileclus(struct TFat *fat, uint32 bufLen);
 int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
       uint8 *buf, uint32 bufLen, uint32 *totalClusRead, uint32 *fromClus);
+int fatfs__storefileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
+      uint8 *buf, uint32 bytesToWrite, uint32 *totalClusWriten, 
+      uint32 *lastClusWriten, uint32 *fromClus);
 int fatfs_cleanup(struct TFat *fat);
 
 /* From fsutils */

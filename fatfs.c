@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v27Jan2005_1516
+ * v29Jan2005_2339
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -47,7 +47,9 @@ int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
   if(fat->bs.isFat16)
   {
     fat->loadrootdir = fatfs16_loadrootdir;
+    fat->storerootdir = fatfs16_storerootdir;
     fat->getfatentry = fatfs16_getfatentry;
+    fat->setfatentry = fatfs16_setfatentry;
     fat->checkfatbeginok = fatfs16_checkfatbeginok;
     fat->curFatNo = 0;
     fat->maxFatEntry = ((fat->bs.fatSz*fat->bs.bytPerSec)/2)-1;
@@ -55,7 +57,9 @@ int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
   else if(fat->bs.isFat32)
   {
     fat->loadrootdir = fatfs32_loadrootdir;
+    fat->storerootdir = fatfs32_storerootdir;
     fat->getfatentry = fatfs32_getfatentry;
+    fat->setfatentry = fatfs32_setfatentry;
     fat->checkfatbeginok = fatfs32_checkfatbeginok;
     fat->curFatNo = FAT32_EXTFLAGS_ACTIVEFAT(fat->bs.extFlags);
     fat->maxFatEntry = ((fat->bs.fatSz*fat->bs.bytPerSec)/4)-1;
@@ -66,6 +70,7 @@ int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
     return -ERROR_NOTSUPPORTED;
   }
   
+  fat->fatUpdated = 0;
   res = fatfs_loadfat(fat,fat->curFatNo,0);
   if(res != 0) return res;
   if((res=fat->checkfatbeginok(fat)) != 0) return res;
@@ -115,7 +120,7 @@ int fatfs32_checkfatbeginok(struct TFat *fat)
 
 int fatfs_loadbootsector(struct TFat *fat)
 {
-  int CountOfClusters, res;
+  int res;
   uint8 *pCur;
   uint32 tVerify;
   uint8 bpbMedia;
@@ -145,6 +150,7 @@ int fatfs_loadbootsector(struct TFat *fat)
   pCur+=11;
   fat->bs.bytPerSec = buffer_read_uint16_le(&pCur);
   fat->bs.secPerClus = buffer_read_uint8_le(&pCur);
+  fat->clusSize = fat->bs.bytPerSec*fat->bs.secPerClus;
   fat->bs.rsvdSecCnt = buffer_read_uint16_le(&pCur);
   fat->bs.numFats = buffer_read_uint8_le(&pCur);
   fat->bs.rootEntCnt = buffer_read_uint16_le(&pCur);
@@ -176,14 +182,14 @@ int fatfs_loadbootsector(struct TFat *fat)
   fat->bs.firstDataSec = fat->bs.rsvdSecCnt + fat->bs.numFats*fat->bs.fatSz + fat->bs.rootDirSecs;
   if(fat->bs.totSec16 != 0) fat->bs.totSec=fat->bs.totSec16; else fat->bs.totSec=fat->bs.totSec32;
   fat->bs.dataSec = fat->bs.totSec - fat->bs.firstDataSec;
-  CountOfClusters = fat->bs.dataSec/fat->bs.secPerClus;
+  fat->cntDataClus = fat->bs.dataSec/fat->bs.secPerClus;
   fat->bs.isFat12 = 0; fat->bs.isFat16 = 0; fat->bs.isFat32 = 0;
-  if(CountOfClusters < 4085)
+  if(fat->cntDataClus < 4085)
   {
     fat->bs.isFat12 = 1;
     printf("**Fat12**\n");
   }
-  else if(CountOfClusters < 65525)
+  else if(fat->cntDataClus < 65525)
   {
     fat->bs.isFat16 = 1;
     printf("**Fat16**\n");
@@ -244,9 +250,24 @@ int fatfs_loadbootsector(struct TFat *fat)
   return 0;
 }
 
+int fatfs_storefat(struct TFat *fat)
+{
+  int iRet, nSecs;
+  if(fat->fatUpdated == 1)
+  {
+    nSecs = (FATFAT_MAXSIZE/fat->bs.bytPerSec);
+    if((fat->curFatPartStartSecAbs+nSecs-1) > fat->curFatEndSecAbs)
+      nSecs = (fat->curFatEndSecAbs - fat->curFatPartStartSecAbs) + 1;
+    iRet=fat->bd->put_sectors(fat->bd,fat->curFatPartStartSecAbs,nSecs,fat->FBuf);
+    if(iRet != 0) return iRet;
+    fat->fatUpdated = 0;
+  }
+  return 0;
+}
+
 int fatfs_loadfat(struct TFat *fat, int fatNo, int startEntry)
 {
-  int fatStartSec, nEntries, nSecs, startSec;
+  int fatStartSec, nEntries, nSecs, startSec, iRet;
 
 #ifndef FATFS_SIMULATE_ERROR  
   if(startEntry < 0) startEntry = 0; 
@@ -280,7 +301,13 @@ int fatfs_loadfat(struct TFat *fat, int fatNo, int startEntry)
   startSec = fatStartSec + startSec;
   printf("INFO:fatfs:loadfat: curFat->StartEntry[%ld]EndEntry[%ld]\n",
     fat->curFatStartEntry, fat->curFatEndEntry);
-  return fat->bd->get_sectors(fat->bd, startSec, nSecs,fat->FBuf); 
+  iRet = fatfs_storefat(fat);
+  if(iRet != 0) return iRet;
+  iRet = fat->bd->get_sectors(fat->bd, startSec, nSecs,fat->FBuf); 
+  if(iRet != 0) return iRet;
+  fat->curFatPartStartSecAbs = startSec;
+  fat->curFatEndSecAbs = fatStartSec+fat->bs.fatSz-1;
+  return 0;
 }
  
 int fatfs16_loadrootdir(struct TFat *fat)
@@ -300,8 +327,26 @@ int fatfs16_loadrootdir(struct TFat *fat)
     return -ERROR_INSUFFICIENTRESOURCE;
   }
   fat->rdSize = rootDirSecs*fat->bs.bytPerSec;
+  fat->RDUpdated = 0;
   return fat->bd->get_sectors(fat->bd,fat->baseSec+firstRootDirSecNum, 
     rootDirSecs,fat->RDBuf); 
+}
+
+int fatfs16_storerootdir(struct TFat *fat)
+{
+  uint32 firstRootDirSecNum, rootDirSecs;
+  int iRet;
+
+  if(fat->RDUpdated != 0)
+  {
+    firstRootDirSecNum = fat->bs.rsvdSecCnt + (fat->bs.numFats*fat->bs.fatSz);
+    rootDirSecs = fat->rdSize/fat->bs.bytPerSec;
+    iRet = fat->bd->put_sectors(fat->bd,fat->baseSec+firstRootDirSecNum, 
+             rootDirSecs,fat->RDBuf); 
+    if(iRet != 0) return iRet;
+    fat->RDUpdated = 0;
+  }
+  return 0;
 }
 
 int fatfs32_loadrootdir(struct TFat *fat)
@@ -315,9 +360,33 @@ int fatfs32_loadrootdir(struct TFat *fat)
   res = fatfs_loadfileallsec_usefileinfo(fat, &fInfo, fat->RDBuf, 
        FATROOTDIR_MAXSIZE, &totSecsRead);
   fat->rdSize = totSecsRead*fat->bs.bytPerSec;
+  fat->RDUpdated = 0;
   if(res !=  0)
      fprintf(stderr,"ERR:fatfs32:rootdir:load failed with[%d]\n", res);
   return res;
+}
+
+int fatfs32_storerootdir(struct TFat *fat)
+{
+  int res;
+  uint32 totClusRead, fromClus, lastClus;
+  struct TFileInfo fInfo;
+  
+  if(fat->RDUpdated != 0)
+  {
+    fInfo.firstClus = fat->bs.rootClus;
+    fInfo.fileSize = FATROOTDIR_MAXSIZE;
+    fromClus = fInfo.firstClus;
+    res = fatfs__storefileclus_usefileinfo(fat, &fInfo, fat->RDBuf, 
+            fat->rdSize, &totClusRead, &lastClus, &fromClus);
+    if(res !=  0)
+    {
+      fprintf(stderr,"ERR:fatfs32:rootdir:store failed with[%d]\n", res);
+      return res;
+    }
+    fat->RDUpdated = 0;
+  }
+  return 0;
 }
 
 int fatfs_FN83_expandifspecial_b(char *cFile, char *tcFile)
@@ -401,7 +470,8 @@ int FN83_expand(char *cFile, char *tcFile)
   return 0;
 }
 
-int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize, 
+#define FATFS_FNAME_FINFO_83EXPANDED 999
+int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint32 dirBufSize, 
   struct TFileInfo *fInfo, uint32 *prevPos, int useLFN)
 {
   int iCur, iCurLFN, flagSpecialCurOrPrev;
@@ -409,6 +479,8 @@ int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize,
   int lfnPos = FATFSLFN_SIZE-1;
   char tcFile[FATDIRENTRYNAME_SIZE+1],*fName;
 
+  if(useLFN != FATFS_FNAME_FINFO_83EXPANDED)
+  {
   /* logic added as . and .. directory entries don't have corresponding
    * lfn entry in the directory
    */
@@ -428,6 +500,13 @@ int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize,
   }
   else
     fName = tcFile;
+  }
+  else
+  {
+    useLFN = 0;
+    flagSpecialCurOrPrev = 999; /* To keep compiler happy */
+    fName = cFile;
+  }
   /****************/
   iCur = *prevPos;
   while(iCur+FATDIRENTRY_SIZE  <= dirBufSize)
@@ -500,6 +579,8 @@ int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint16 dirBufSize,
     fInfo->wrtDate = buffer_read_uint16_le(&pCur);
     fInfo->firstClus |= buffer_read_uint16_le(&pCur);
     fInfo->fileSize = buffer_read_uint32_le(&pCur);
+    fInfo->newFileSize = fInfo->fileSize;
+    fInfo->updated = 0;
 #if (DEBUG_PRINT_FATFS > 15)
     printf("INFO:fatfs:File[%s][%s] attr[0x%x] firstClus[%ld]fileSize[%ld]\n",
       fInfo->name, (char*)fInfo->lfn, fInfo->attr, fInfo->firstClus, fInfo->fileSize);
@@ -544,7 +625,7 @@ int fatfs16_getfatentry(struct TFat *fat, uint32 iEntry,
 
   if(iEntry > fat->maxFatEntry)
   {
-    fprintf(stderr,"ERR:fatfs16: fatentry[%ld] > maxFatEntry[%ld]\n",
+    fprintf(stderr,"ERR:fatfs16:get fatentry[%ld] > maxFatEntry[%ld]\n",
       iEntry,fat->maxFatEntry);
     return -ERROR_INVALID;
   }
@@ -570,6 +651,37 @@ int fatfs16_getfatentry(struct TFat *fat, uint32 iEntry,
   return 0;
 }
 
+int fatfs16_setfatentry(struct TFat *fat, uint32 iEntry, uint32 iValue)
+{
+  uint16 iActValue;
+
+  if(iValue == FATFS_EOF)
+    iActValue = FAT16_EOF;
+  else if(iValue == FATFS_BADCLUSTER)
+    iActValue = FAT16_BADCLUSTER;
+  else
+    iActValue = iValue;
+  if(iEntry > fat->maxFatEntry)
+  {
+    fprintf(stderr,"ERR:fatfs16:set fatentry[%ld] > maxFatEntry[%ld]\n",
+      iEntry,fat->maxFatEntry);
+    return -ERROR_INVALID;
+  }
+#ifdef FATFS_FAT_FULLYMAPPED 
+  ((uint16*)fat->FBuf)[iEntry] = iActValue;
+#endif
+#ifdef FATFS_FAT_PARTLYMAPPED
+  {
+  uint32 iMappedEntry;
+  if(fatfs_partlymappedfat_handle(fat,iEntry,&iMappedEntry) != 0) 
+    return -ERROR_FAILED;
+  ((uint16*)fat->FBuf)[iMappedEntry] = iActValue;
+  }
+#endif
+  fat->fatUpdated = 1;
+  return 0;
+}
+
 int fatfs32_getfatentry(struct TFat *fat, uint32 iEntry, 
       uint32 *iValue, uint32 *iActual)
 {
@@ -577,7 +689,7 @@ int fatfs32_getfatentry(struct TFat *fat, uint32 iEntry,
 
   if(iEntry > fat->maxFatEntry)
   {
-    fprintf(stderr,"ERR:fatfs32: fatentry[%ld] > maxFatEntry[%ld]\n",
+    fprintf(stderr,"ERR:fatfs32:get fatentry[%ld] > maxFatEntry[%ld]\n",
       iEntry,fat->maxFatEntry);
     return -ERROR_INVALID;
   }
@@ -601,6 +713,91 @@ int fatfs32_getfatentry(struct TFat *fat, uint32 iEntry,
   else if(iCurClus == FATFS_FREECLUSTER) /* Free Cluster */
     return -ERROR_FATFS_FREECLUSTER;
   *iValue = iCurClus;
+  return 0;
+}
+
+int fatfs32_setfatentry(struct TFat *fat, uint32 iEntry, uint32 iValue)
+{
+  uint32 iActValue;
+
+  if(iValue == FATFS_EOF)
+    iActValue = FAT32_EOF;
+  else if(iValue == FATFS_BADCLUSTER)
+    iActValue = FAT32_BADCLUSTER;
+  else
+    iActValue = iValue;
+  if(iEntry > fat->maxFatEntry)
+  {
+    fprintf(stderr,"ERR:fatfs32:set fatentry[%ld] > maxFatEntry[%ld]\n",
+      iEntry,fat->maxFatEntry);
+    return -ERROR_INVALID;
+  }
+#ifdef FATFS_FAT_FULLYMAPPED 
+  ((uint32*)fat->FBuf)[iEntry] = iActValue;
+#endif
+#ifdef FATFS_FAT_PARTLYMAPPED
+  {
+  uint32 iMappedEntry;
+  if(fatfs_partlymappedfat_handle(fat,iEntry,&iMappedEntry) != 0) 
+    return -ERROR_FAILED;
+  ((uint32*)fat->FBuf)[iMappedEntry] = iActValue;
+  }
+#endif
+  fat->fatUpdated = 1;
+  return 0;
+}
+
+int fatfs_getoptifreecluslist(struct TFat *fat, struct TClusList *cl,
+      int *clSize, uint32 *fromClus)
+{
+  int iCL = -1;
+  uint32 iCurClus, iPrevClus;
+  int iRet;
+
+#if (DEBUG_PRINT_FATFS > 25)
+  pa_printstr("fatfs:optifreecluslist: cntDataClus [");
+  pa_printints(fat->cntDataClus,"] maxFatEntry ["); 
+  pa_printints(fat->maxFatEntry,"]\n");
+#endif  
+  if(*fromClus < 2)
+    *fromClus = 2;
+  iPrevClus=0;
+  for(iCurClus=*fromClus;iCurClus<fat->cntDataClus;iCurClus++) /* FIXMAYBE:cnt+2 */
+  {
+    uint32 iValue,iActualVal;
+    iRet=fat->getfatentry(fat,iCurClus,&iValue,&iActualVal);
+    if(iRet == -ERROR_FATFS_FREECLUSTER)
+    {
+#if (DEBUG_PRINT_FATFS > 15)
+      printf("fatfs:optifreecluslist: iCurClus[%ld] iActualVal[%ld]\n", 
+        iCurClus, iActualVal);
+#endif
+      if((iCurClus-iPrevClus) == 1)
+      {
+        cl[iCL].adjClusCnt++;
+        iPrevClus = iCurClus;
+      }
+      else
+      {
+        iCL++;
+        if(iCL >= *clSize) 
+        {
+          /* we have used up all the cl so 
+           * call once again with updated *fromClus
+           */
+          *fromClus = iCurClus;
+          *clSize = iCL;
+          return -ERROR_TRYAGAIN;
+        }
+        cl[iCL].baseClus = iCurClus;
+        cl[iCL].adjClusCnt = 0;
+        iPrevClus = iCurClus;
+      }
+    }
+  }
+  *clSize = iCL+1; /* *clSize returns the count of entries */
+  if(*clSize <= 0)
+    return -ERROR_NOMORE;
   return 0;
 }
 
@@ -666,6 +863,54 @@ int fatfs_getopticluslist_usefileinfo(struct TFat *fat,
   }
   *clSize = iCL;
   return -ERROR_TRYAGAIN;
+}
+
+int fatfs__getlastclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
+      uint32 fromClus, uint32 *lastClus)
+{
+  uint32 iCurClus, iPrevClus;
+  int iRet;
+
+  if(fromClus == 0)
+    iPrevClus = fInfo->firstClus;
+  else
+    iPrevClus = fromClus;
+  *lastClus = 0;
+  while(1)
+  {
+    uint32 iActualEnt;
+    if((iRet=fat->getfatentry(fat,iPrevClus,&iCurClus,&iActualEnt)) != 0)
+    {
+      if(iRet == -ERROR_FATFS_EOF) /* EOF reached */
+      {
+        *lastClus = iPrevClus;
+        return 0;
+      }
+      else
+        return iRet;
+    }
+    iPrevClus = iCurClus;
+  }
+  return -ERROR_UNKNOWN;
+}
+
+#define FATFS__LINKNEWSEGMENT_USEFILEINFO_OPTI 1
+int fatfs__linknewsegment_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
+      uint32 oldLastClus, uint32 newSegStartClus, uint32 newSegEndClus)
+{
+  uint32 iCur,actLastClus = oldLastClus;
+  int iRet;
+
+#ifdef FATFS__LINKNEWSEGMENT_USEFILEINFO_OPTI  
+  if(oldLastClus == 0)
+#endif	  
+    if(fatfs__getlastclus_usefileinfo(fat,fInfo,oldLastClus,&actLastClus) != 0)
+      return -ERROR_FAILED;
+  if((iRet=fat->setfatentry(fat,actLastClus,newSegStartClus)) != 0) return iRet;
+  for(iCur=newSegStartClus;iCur<newSegEndClus;iCur++)
+    if((iRet=fat->setfatentry(fat,iCur,iCur+1)) != 0) return iRet;
+  if((iRet=fat->setfatentry(fat,newSegEndClus,FATFS_EOF)) != 0) return iRet;
+  return 0;
 }
 
 int fatfs_loadfileallsec_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
@@ -819,6 +1064,158 @@ int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
            &lastClusRead, fromClus);
 }
 
+#define FATFS_WRITENEW_MINADJCLUSCNT 16
+#define FATFS__STOREFILECLUS_FROMCLUS_ALLOC FATFS_EOF
+
+int fatfs__storefileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
+      uint8 *buf, uint32 bytesToWrite, uint32 *totalClusWriten, 
+      uint32 *lastClusWriten, uint32 *fromClus)
+{
+  uint32 noSecs, bytesWriten, oldLastClus;
+  int32 totalPosClus2Write, noClus2Write;
+  struct TClusList cl[16];
+  int resOCL, resGS, clSize, iCur, bAllWriten;
+
+#ifdef FATFS_FORCEARGCHECK_FIXME
+  if(fatfs_checkbuf_forstorefileclus(fat,buf,bufLen)!=0) return -ERROR_INVALID;
+  if(*fromClus) 
+    if(fatfs_checkclusispartoffile_usefileinfo(fat,fInfo,*fromClus)!=0)
+      return -ERROR_INVALID;
+#endif 
+ 
+  bAllWriten = 0;
+  *totalClusWriten = 0;
+  *lastClusWriten = *fromClus;
+  totalPosClus2Write = (bytesToWrite+fat->clusSize-1)/fat->clusSize;
+  if(*fromClus == FATFS__STOREFILECLUS_FROMCLUS_ALLOC)
+  {
+    *lastClusWriten = 0;
+    goto fatfs__storefileclus_fromclus_alloc;
+  }
+  do
+  {
+    clSize = 16; 
+    resOCL = fatfs_getopticluslist_usefileinfo(fat, fInfo, cl, &clSize, 
+      fromClus);
+    if((resOCL != 0) && (resOCL != -ERROR_TRYAGAIN))
+      break;
+    bAllWriten = 0;
+    for(iCur=0; ((iCur<clSize) && !bAllWriten); iCur++)
+    {
+      totalPosClus2Write -= (cl[iCur].adjClusCnt+1);
+      if(totalPosClus2Write >= 0)
+        noClus2Write = cl[iCur].adjClusCnt+1;
+      else
+      {
+        noClus2Write = (cl[iCur].adjClusCnt+1)+totalPosClus2Write;
+        *fromClus = cl[iCur].baseClus+noClus2Write;
+        bAllWriten = 1;
+      }
+      *totalClusWriten += noClus2Write;
+      noSecs = noClus2Write*fat->bs.secPerClus;
+      bytesWriten = noSecs*fat->bs.bytPerSec;
+      resGS=fat->bd->put_sectors(fat->bd,fat->baseSec+
+        fatfs_firstsecofclus(fat,cl[iCur].baseClus),noSecs,buf);
+      if(resGS != 0)
+      {
+        printf("DEBUG:fatfs:load: bd_put_sectors failed\n");
+        return resGS;
+      }
+      else
+      {
+        if(noClus2Write)
+          *lastClusWriten = cl[iCur].baseClus+(noClus2Write-1);
+      }
+      buf += bytesWriten; 
+    }
+  }while((resOCL!=0) && !bAllWriten);
+  if(bAllWriten)
+    return 0;
+  if(resOCL == -ERROR_TRYAGAIN)
+    return -ERROR_UNKNOWN;
+  if(resOCL != 0)
+    return resOCL;
+  /* eof reached for file as it exists now */
+  fInfo->newFileSize = ((fInfo->newFileSize+fat->clusSize-1)/fat->clusSize)*fat->clusSize;
+  if(fInfo->newFileSize < *totalClusWriten*fat->clusSize) /* Just in case */
+    fInfo->newFileSize = *totalClusWriten*fat->clusSize;
+  fInfo->updated = 1;
+fatfs__storefileclus_fromclus_alloc:  
+  *fromClus = 0;
+  do
+  {
+    clSize = 16; 
+    resOCL = fatfs_getoptifreecluslist(fat, cl, &clSize, fromClus);
+    if((resOCL != 0) && (resOCL != -ERROR_TRYAGAIN))
+      break;
+    for(iCur=0; ((iCur<clSize) && !bAllWriten); iCur++)
+    {
+      if(cl[iCur].adjClusCnt < FATFS_WRITENEW_MINADJCLUSCNT)
+        continue;
+      totalPosClus2Write -= (cl[iCur].adjClusCnt+1);
+      if(totalPosClus2Write >= 0)
+        noClus2Write = cl[iCur].adjClusCnt+1;
+      else
+      {
+        noClus2Write = (cl[iCur].adjClusCnt+1)+totalPosClus2Write;
+        bAllWriten = 1;
+      }
+      *totalClusWriten += noClus2Write;
+      noSecs = noClus2Write*fat->bs.secPerClus;
+      bytesWriten = noSecs*fat->bs.bytPerSec;
+      resGS=fat->bd->put_sectors(fat->bd,fat->baseSec+
+        fatfs_firstsecofclus(fat,cl[iCur].baseClus),noSecs,buf);
+      if(resGS != 0)
+      {
+        printf("DEBUG:fatfs:load: bd_put_sectors failed\n");
+        return resGS;
+      }
+      else
+      {
+        if(noClus2Write)
+        {
+          *fromClus = cl[iCur].baseClus+noClus2Write;
+          oldLastClus = *lastClusWriten;
+          *lastClusWriten = cl[iCur].baseClus+(noClus2Write-1);
+          resGS=fatfs__linknewsegment_usefileinfo(fat,fInfo,oldLastClus,cl[iCur].baseClus,*lastClusWriten);
+          if(resGS != 0) return resGS;
+          fInfo->newFileSize = fInfo->newFileSize + noClus2Write*fat->clusSize;
+          fInfo->updated = 1;
+	}
+	if(bAllWriten)
+          *fromClus = FATFS__STOREFILECLUS_FROMCLUS_ALLOC;
+      }
+      buf += bytesWriten; 
+    }
+  }while((resOCL!=0) && !bAllWriten);
+  if(bAllWriten)
+    return 0;
+  if(resOCL == -ERROR_TRYAGAIN)
+    return -ERROR_UNKNOWN;
+  if(resOCL != 0)
+    return resOCL;
+  return -ERROR_UNKNOWN;
+}
+
+int fatfs_updatefilesize_indirbuf(char *dirBuf, uint32 dirBufSize, 
+      char* fName, uint32 fileSize)
+{
+  uint32 prevPos=0;
+  int iRet;
+  uint8 *pCur;
+  struct TFileInfo fInfo;
+  
+  iRet=fatfs_getfileinfo_fromdir(fName,dirBuf,dirBufSize,&fInfo,&prevPos,FATFS_FNAME_FINFO_83EXPANDED);
+  if(iRet != 0)
+    return -ERROR_NOTFOUND;
+  pCur=dirBuf+prevPos;
+  pCur-=4; /* offset of filesize */
+  *(uint32*)pCur = fileSize;
+  return 0;
+}
+
+/* Fat user context routines */
+
 int fatuc_init(struct TFatFsUserContext *uc, struct TFat *fat)
 {
   uc->fat = fat;
@@ -900,51 +1297,20 @@ int util_gettoken(char **cBuf, char *token, int tokenLen, char sep)
   return 0;
 }
 
-int util_strcpy(uint8 *src, uint8 *dest, uint32 destLen)
-{
-  int iCur;
-  for(iCur=0; iCur < destLen; iCur++, src++)
-  {
-    dest[iCur] = *src;
-    if(*src == (uint8)NULL)
-      return 0;
-  }
-  dest[destLen-1] = 0;
-  return -1;
-}
-
-int util_memcpy(uint8 *src, uint32 srcLen, uint8 *dest, uint32 destLen)
-{
-  int iLen, iCur, iRet;
-  
-  if(srcLen > destLen)
-  {
-    iLen = destLen;
-    iRet = -1;
-  }
-  else
-  {
-    iLen = srcLen;
-    iRet = 0;
-  }
-  for(iCur=0; iCur < iLen; iCur++)
-    dest[iCur] = src[iCur];
-  return iRet;
-}
-
-
 int fatuc__changedir(struct TFatFsUserContext *uc, char *fDirName, int bUpdateCurDir)
 {
   uint16 tokenLen = (FATDIRENTRYLFN_SIZE+1);
   uint8 *dBuf;
   uint32 dBufLen;
-  char *sDirName = fDirName, token[tokenLen];;
+  char *sDirName = fDirName, token[tokenLen];
+  struct TFileInfo fInfo;
 
   if(sDirName[0] == FATFS_DIRSEP)
   {
     sDirName++;
     dBuf = uc->fat->RDBuf;
     dBufLen = uc->fat->rdSize;
+    fInfo.firstClus = 0; fInfo.fileSize = 0;
   }
   else
   {
@@ -960,7 +1326,6 @@ int fatuc__changedir(struct TFatFsUserContext *uc, char *fDirName, int bUpdateCu
   while(util_gettoken(&sDirName, token, tokenLen, FATFS_DIRSEP) == 0)
   {
     uint32 prevPos, res, totSecsRead;
-    struct TFileInfo fInfo;
 
 #if (DEBUG_PRINT_FATFS > 10)
     printf("fatfs:chdir:token [%s]\n", token);
@@ -1001,13 +1366,16 @@ int fatuc__changedir(struct TFatFsUserContext *uc, char *fDirName, int bUpdateCu
   {
     uc->curDirBuf = dBuf;
     uc->curDirBufLen = dBufLen;
-    util_strcpy(fDirName, uc->sCurDir, FATFSPATHNAME_MAXSIZE); 
+    pa_strncpy(uc->sCurDir, fDirName, FATFSPATHNAME_MAXSIZE);
     fatuc_updatetempdirbufinfo(uc);
+    pa_memcpy(&uc->curDirInfo,&fInfo,sizeof(fInfo));
   }
   else
   {
     uc->tempDirBuf = dBuf;
     uc->tempDirBufLen = dBufLen;
+    pa_memcpy(&uc->tempDirInfo,&fInfo,sizeof(fInfo));
+    //uc->tempDirSClus = fInfo.firstClus;
   }
   return 0;
 }
@@ -1017,8 +1385,8 @@ int fatuc_chdir(struct TFatFsUserContext *uc, char *fDirName)
   return fatuc__changedir(uc, fDirName, 1);
 }
 
-int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,  
-  struct TFileInfo *fInfo, uint32 *prevPos)
+int fatuc__getfileinfo(struct TFatFsUserContext *uc, char *cFile,  
+  struct TFileInfo *fInfo, struct TFileInfo *dInfo, uint32 *prevPos)
 {
   int res;
 
@@ -1031,8 +1399,11 @@ int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,
   }
   
   if(uc->pName[0] == 0)
+  {
+    pa_memcpy(dInfo,&uc->curDirInfo,sizeof(struct TFileInfo));
     return fatfs_getfileinfo_fromdir(uc->fName, uc->curDirBuf, 
       uc->curDirBufLen, fInfo, prevPos, 0);
+  }
   else
   {
 #if (DEBUG_PRINT_FATFS > 5)
@@ -1044,13 +1415,27 @@ int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,
       printf("ERROR:fatuc:getfileinfo: changedir failed\n");
       return res;
     }
+    pa_memcpy(dInfo,&uc->tempDirInfo,sizeof(struct TFileInfo));
     return fatfs_getfileinfo_fromdir(uc->fName, uc->tempDirBuf, 
       uc->tempDirBufLen, fInfo, prevPos, 0);
   }
 }
 
+int fatuc_getfileinfo(struct TFatFsUserContext *uc, char *cFile,  
+  struct TFileInfo *fInfo, uint32 *prevPos)
+{
+  struct TFileInfo dInfo;
+  return fatuc__getfileinfo(uc,cFile,fInfo,&dInfo,prevPos);
+}
+
 int fatfs_cleanup(struct TFat *fat)
 {
+  int iRet;
+  
+  iRet = fat->storerootdir(fat);
+  if(iRet != 0) return iRet;
+  iRet = fatfs_storefat(fat);
+  if(iRet != 0) return iRet;
   return 0;
 }
 
@@ -1074,7 +1459,7 @@ int fatuc_fopen(struct TFatFsUserContext *uc, char *cFile, int *fId)
   }
   if(*fId == -1)
     return -ERROR_INSUFFICIENTHANDLES;
-  return fatuc_getfileinfo(uc,cFile,&uc->files[*fId].fInfo,&prevPos);
+  return fatuc__getfileinfo(uc,cFile,&uc->files[*fId].fInfo,&uc->files[*fId].dInfo,&prevPos);
 }
 
 #define FATUC_TEMP_CLSIZE 64
@@ -1231,10 +1616,89 @@ int fatuc_fread(struct TFatFsUserContext *uc, int fId,
   return 0;
 }
 
+int fatuc__getdirbufoffile(struct TFatFsUserContext *uc, int fId,
+      uint8 **dBuf, uint32 *dBufLen)
+{
+  struct TFatFile *f;
+
+  f=&uc->files[fId];
+  if(f->dInfo.firstClus == uc->curDirInfo.firstClus)
+  {
+    *dBuf = uc->curDirBuf; *dBufLen = uc->curDirBufLen;
+  }
+  else if(f->dInfo.firstClus == uc->tempDirInfo.firstClus)
+  {
+    *dBuf = uc->tempDirBuf; *dBufLen = uc->tempDirBufLen;
+  }
+  else if(f->dInfo.firstClus == 0)
+  {
+    *dBuf = uc->fat->RDBuf; *dBufLen = uc->fat->rdSize;
+  }
+  else
+  {
+    /*
+     * FIXME: Have to add support for loading the directory data
+     * using the firstClus info available for it
+     * Till this support is added, if one has to write files see to it that 
+     * the directory to which file has to be written should be the current 
+     * directory. Thus when copying/moving files in the same filesystem
+     * see that dest file's directory is the current directory and the 
+     * source file could be from any directory.
+     */
+    return -ERROR_NOTSUPPORTED;
+  }
+  return 0;
+}
+
+int fatuc__savedirbuf(struct TFatFsUserContext *uc, struct TFileInfo *dInfo, 
+      uint8 *dBuf, uint32 dBufLen)
+{
+  uint32 totalClusWriten, lastClus, fromClus=0;
+  int iRet;
+
+  if(dInfo->firstClus != 0)
+  {
+    iRet = fatfs__storefileclus_usefileinfo(uc->fat,dInfo,dBuf,dBufLen,
+             &totalClusWriten,&lastClus,&fromClus);
+    if(iRet != 0) return iRet;
+  }
+  else  /* rootdir, will be saved during unmount and not now */ 
+    uc->fat->RDUpdated = 1;
+  return 0;
+}
+
+int fatuc__syncfileinfo(struct TFatFsUserContext *uc, int fId)
+{
+  struct TFatFile *f;
+  uint8 *dBuf;
+  uint32 dBufLen;
+  int iRet;
+
+  f=&uc->files[fId];
+  iRet = fatuc__getdirbufoffile(uc,fId,&dBuf,&dBufLen);
+  if(iRet != 0) return iRet;
+  iRet = fatfs_updatefilesize_indirbuf(dBuf, dBufLen,
+           f->fInfo.name,f->fInfo.newFileSize);
+  if(iRet != 0) return iRet;
+  iRet = fatuc__savedirbuf(uc,&f->dInfo,dBuf,dBufLen);
+  if(iRet != 0) return iRet;
+  f->fInfo.fileSize = f->fInfo.newFileSize;
+  f->fInfo.updated = 0;
+  return 0;
+}
+
 int fatuc_fclose(struct TFatFsUserContext *uc, int fId)
 {
   if(uc->files[fId].state == FATUC_USED)
   {
+    if(uc->files[fId].fInfo.updated)
+    {
+      pa_printstr("INFO: File has been updated [o:n]=[");
+      pa_printints(uc->files[fId].fInfo.fileSize,":");
+      pa_printints(uc->files[fId].fInfo.newFileSize,"], updating its dir info\n");
+      if(fatuc__syncfileinfo(uc,fId) != 0)
+        pa_printstrErr("fatfs:uc:fclose syncfileinfo failed\n");
+    }
     uc->files[fId].state = FATUC_FREE;
     uc->files[fId].fPos = 0;
     uc->files[fId].fromClus = -1;

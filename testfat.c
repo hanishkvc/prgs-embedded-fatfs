@@ -1,11 +1,11 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v18Jan2005_1830
+ * v29Jan2005_2205
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
-#define TESTFAT_PRGVER "v27Jan2005_2106"
+#define TESTFAT_PRGVER "v01Feb2005_1755"
 
 #include <sched.h>
 
@@ -20,6 +20,7 @@
 #include <rand.h>
 
 #define TESTFAT_BDBM_SECS 80000
+#define TESTFAT_BDBMW_SECS 2048
 
 bdkT bdkBDFile;
 bdkT bdkHdd;
@@ -38,6 +39,7 @@ void *pArg[8];
 char pBuf[1024];
 uint32 gDataBufSize;
 int gFatUCFuncs=0;
+char sCur[16];
 
 int testfat_rootdirlisting(struct TFatFsUserContext *uc)
 {
@@ -89,10 +91,40 @@ int testfat_dirlisting(struct TFatFsUserContext *uc, char *dir)
 
 #define CLUSLIST_SIZE 1
 
+int testfat_fsfreelist(struct TFatFsUserContext *uc)
+{
+  int clSize; 
+  int iCur, res;
+  uint32 fromClus, totalClus;
+  struct TClusList cl[CLUSLIST_SIZE];
+
+  printf("************* Filesystem Free list logic ******************\n");
+  fromClus = 0;
+  totalClus = 0;
+  do
+  {
+    clSize = CLUSLIST_SIZE; 
+    res = fatfs_getoptifreecluslist(uc->fat, cl, &clSize, &fromClus);
+    for(iCur=0; iCur < clSize; iCur++)
+    {
+      totalClus += cl[iCur].adjClusCnt+1;
+      printf("Optimised FreeClusList baseClus[%ld] adjClusCnt[%ld] next fromClus[%ld]\n",
+        cl[iCur].baseClus, cl[iCur].adjClusCnt, fromClus);
+    }
+    if((res!=0) && (res!=-ERROR_TRYAGAIN))
+    {
+      fprintf(stderr,"ERR:testfat:fsfreelist:FATchain may not be valid\n");
+      return -1;
+    }
+  }while(res != 0);
+  printf("TotalFREEspace [%ld]\n",totalClus*uc->fat->clusSize);
+  return 0;
+}
+
 int testfat_checkfile(struct TFatFsUserContext *uc, char *cFile)
 {
   int clSize, iCur, res;
-  uint32 prevClus, prevPos;
+  uint32 fromClus, prevPos;
   struct TClusList cl[CLUSLIST_SIZE];
 
   printf("************* Check file logic ******************\n");
@@ -102,12 +134,12 @@ int testfat_checkfile(struct TFatFsUserContext *uc, char *cFile)
   {
     printf("testfat: File[%s][%s] attr[0x%x] firstClus[%ld] fileSize[%ld]\n",
       fInfo.name,(char*)fInfo.lfn, fInfo.attr, fInfo.firstClus, fInfo.fileSize);
-    prevClus = 0;
+    fromClus = 0;
     do
     {
       clSize = CLUSLIST_SIZE; 
       res = fatfs_getopticluslist_usefileinfo(uc->fat, &fInfo, cl, &clSize, 
-        &prevClus);
+        &fromClus);
       if((res!=0) && (res!=-ERROR_TRYAGAIN))
       {
         fprintf(stderr,"ERR:testfat:checkfile:FATchain not valid for file\n");
@@ -115,8 +147,8 @@ int testfat_checkfile(struct TFatFsUserContext *uc, char *cFile)
       }
       for(iCur=0; iCur < clSize; iCur++)
       {
-        printf("[%s] Optimised ClusList baseClus[%ld] adjClusCnt[%ld] prevClus[%ld]\n",
-          fInfo.name, cl[iCur].baseClus, cl[iCur].adjClusCnt, prevClus);
+        printf("[%s] Optimised ClusList baseClus[%ld] adjClusCnt[%ld] next fromClus[%ld]\n",
+          fInfo.name, cl[iCur].baseClus, cl[iCur].adjClusCnt, fromClus);
       }
     }while(res != 0);
   }
@@ -131,7 +163,7 @@ int testfat_checkfile(struct TFatFsUserContext *uc, char *cFile)
 int testfat_fileextract(struct TFatFsUserContext *uc, char *sFile, char *dFile)
 {
   FILE *fDest;
-  uint32 prevPos, prevClus, dataClusRead;
+  uint32 prevPos, fromClus, dataClusRead;
   int res, ret, resFW, bytesRead;
 
   if(strncmp(dFile,"STDOUT",6) != 0)
@@ -151,19 +183,19 @@ int testfat_fileextract(struct TFatFsUserContext *uc, char *sFile, char *dFile)
     printf("testfat:ERROR: opening src [%s] file\n", sFile);
     return -1;
   }
-  prevClus = 0;
+  fromClus = 0;
   ret = -1;
   fatfs_checkbuf_forloadfileclus(uc->fat, gDataBufSize);
   while(1)
   {
     res=fatfs_loadfileclus_usefileinfo(uc->fat, &fInfo, gDataBuf, gDataBufSize, 
-      &dataClusRead, &prevClus);
+      &dataClusRead, &fromClus);
     if((res != 0)&&(res != -ERROR_TRYAGAIN))
       break;
 #if DEBUG_TESTFAT > 15    
     else
-      printf("testfat:INFO: loadfileclus clusRead[%ld] prevClus[%ld]\n", 
-        dataClusRead, prevClus);
+      printf("testfat:INFO: loadfileclus clusRead[%ld] next fromClus[%ld]\n", 
+        dataClusRead, fromClus);
 #endif    
     bytesRead = dataClusRead*uc->fat->bs.secPerClus*uc->fat->bs.bytPerSec;
     resFW=fwrite(gDataBuf,1, bytesRead, fDest);
@@ -184,7 +216,7 @@ int testfat_fileextract(struct TFatFsUserContext *uc, char *sFile, char *dFile)
 
 int testfat_checkreadspeed(struct TFatFsUserContext *uc, char *sFile, uint32 *fileSize)
 {
-  uint32 prevPos, prevClus, dataClusRead;
+  uint32 prevPos, fromClus, dataClusRead;
   int res, ret, bytesRead;
 
   prevPos = 0;
@@ -194,19 +226,19 @@ int testfat_checkreadspeed(struct TFatFsUserContext *uc, char *sFile, uint32 *fi
     return -1;
   }
   *fileSize = fInfo.fileSize;
-  prevClus = 0;
+  fromClus = 0;
   ret = -1;
   fatfs_checkbuf_forloadfileclus(uc->fat, gDataBufSize);
   while(1)
   {
     res=fatfs_loadfileclus_usefileinfo(uc->fat, &fInfo, gDataBuf, gDataBufSize, 
-      &dataClusRead, &prevClus);
+      &dataClusRead, &fromClus);
     if((res != 0)&&(res != -ERROR_TRYAGAIN))
       break;
 #if DEBUG_TESTFAT > 15    
     else
-      printf("testfat:INFO: loadfileclus clusRead[%ld] prevClus[%ld]\n", 
-        dataClusRead, prevClus);
+      printf("testfat:INFO: loadfileclus clusRead[%ld] next fromClus[%ld]\n", 
+        dataClusRead, fromClus);
 #endif    
     bytesRead = dataClusRead*uc->fat->bs.secPerClus*uc->fat->bs.bytPerSec;
     if(res == 0)
@@ -241,7 +273,7 @@ void testfat_normalfsfile_checksum(char *sFile)
 
 int testfat_fatfsfile_checksum(struct TFatFsUserContext *uc, char *sFile)
 {
-  uint32 prevPos, prevClus, dataClusRead;
+  uint32 prevPos, fromClus, dataClusRead;
   int res, ret, bytesRead,iCur,cSum,fileSize;
 
   prevPos = 0;
@@ -251,20 +283,20 @@ int testfat_fatfsfile_checksum(struct TFatFsUserContext *uc, char *sFile)
     return -1;
   }
   fileSize = fInfo.fileSize;
-  prevClus = 0;
+  fromClus = 0;
   cSum = 0;
   ret = -1;
   fatfs_checkbuf_forloadfileclus(uc->fat, gDataBufSize);
   while(1)
   {
     res=fatfs_loadfileclus_usefileinfo(uc->fat, &fInfo, gDataBuf, gDataBufSize, 
-      &dataClusRead, &prevClus);
+      &dataClusRead, &fromClus);
     if((res != 0)&&(res != -ERROR_TRYAGAIN))
       break;
 #if DEBUG_TESTFAT > 15    
     else
-      printf("testfat:INFO: loadfileclus clusRead[%ld] prevClus[%ld]\n", 
-        dataClusRead, prevClus);
+      printf("testfat:INFO: loadfileclus clusRead[%ld] next fromClus[%ld]\n", 
+        dataClusRead, fromClus);
 #endif    
     bytesRead = dataClusRead*uc->fat->bs.secPerClus*uc->fat->bs.bytPerSec;
     for(iCur=0;iCur<bytesRead;iCur++)
@@ -370,49 +402,71 @@ int main(int argc, char **argv)
   do{
     bExit = 0;
     printf("[%s]========curDir [%s]========\n", TESTFAT_PRGVER,gUC.sCurDir);
-    printf("(l)dirListing (e)fileExtract (E)Exit (b)BlockDev speed\n");
-    printf("(c)chDir (f)checkFile (R)Reset (s)readspeed (S)readspeedALL\n");
-    printf("(X)normalfsfile checksum (Y)fatfsfile checksum\n");
-    printf("(U)FatUserContext Funcs (k)seektest\n");
-    cCur = fgetc(stdin); fgetc(stdin);
-    switch(cCur)
+    printf("(ls)dirListing (cpfp)fileExtract2Posix (bsr|w)BlockDev speed\n");
+    printf("(cd)chDir (cf)checkFile (reset)Reset (fs)readspeed (fsa)readspeedALL\n");
+    printf("(nfc)normalfsfile checksum (ffc)fatfsfile checksum\n");
+    printf("(FUC)FatUserContext Funcs (seek)seektest (fsfreelist)FilesysFreelist\n");
+    printf("(cpff)fileExtract2fatfs (exit) Exit\n");
+    scanf("%s",sCur); fgetc(stdin);
+    if(strcmp("ls",sCur) == 0)
     {
-    case 'l':
       printf("enter directory to list:");
       scanf("%s",sBuf1);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
       testfat_dirlisting(&gUC, sBuf1);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"dirListing");
-      break;
-    case 'e':
-      printf("enter src and dest files:");
+    }
+    if(strcmp("cpfp",sCur) == 0)
+    {
+      printf("enter fatfs_src and posix_dest files:");
       scanf("%s %s", sBuf1, sBuf2);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
       if(gFatUCFuncs)
-        testfatuc_fileextract(&gUC, sBuf1, sBuf2);
+        testfatuc_fileextract2posix(&gUC, sBuf1, sBuf2);
       else
         testfat_fileextract(&gUC, sBuf1, sBuf2);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"fileExtract");
-      break;
-    case 'c':
+    }
+    if(strcmp("cpff",sCur) == 0)
+    {
+      printf("enter fatfs_src and fatfs_dest files:");
+      scanf("%s %s", sBuf1, sBuf2);
+      fgetc(stdin);
+      lu_starttime(&gTFtv1);
+      //if(gFatUCFuncs)
+        testfatuc_fileextract2fatfs(&gUC, sBuf1, sBuf2);
+      //else
+      //  testfat_fileextract(&gUC, sBuf1, sBuf2);
+      lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"fileExtract");
+    }
+    if(strcmp("cd",sCur) == 0)
+    {
       printf("enter dir to chdir to:");
       scanf("%s", sBuf1);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
       fatuc_chdir(&gUC, sBuf1);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"chDir");
-      break;
-    case 'f':
+    }
+    if(strcmp("cf",sCur) == 0)
+    {
       printf("enter file to check:");
       scanf("%s",sBuf1);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
       testfat_checkfile(&gUC, sBuf1);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"checkFile");
-      break;
-    case 's':
+    }
+    if(strcmp("fsfreelist",sCur) == 0)
+    {
+      lu_starttime(&gTFtv1);
+      testfat_fsfreelist(&gUC);
+      lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"fsfreelist");
+    }
+    if(strcmp("fs",sCur) == 0)
+    {
       printf("enter src file for read speed test:");
       scanf("%s",sBuf1);
       fgetc(stdin);
@@ -424,8 +478,9 @@ int main(int argc, char **argv)
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"readspeed");
       fprintf(stderr,"fileSize[%ld] time[%ld]usecs readSpeed/msec[%ld]\n",
         fileSize,timeInUSECS,(fileSize/(timeInUSECS/1000)));
-      break;
-    case 'S':
+    }
+    if(strcmp("fsa",sCur) == 0)
+    {
       printf("enter src file for read speed test:");
       scanf("%s",sBuf1);
       fgetc(stdin);
@@ -435,15 +490,19 @@ int main(int argc, char **argv)
       {
         fprintf(stderr,"testfat:readspeedALL: BufSize [%ld]\n",gDataBufSize);
         lu_starttime(&gTFtv1);
-        testfat_checkreadspeed(&gUC, sBuf1, &fileSize);
+        if(gFatUCFuncs)
+          testfatuc_checkreadspeed(&gUC, sBuf1, &fileSize);
+        else
+          testfat_checkreadspeed(&gUC, sBuf1, &fileSize);
         lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"readspeedALL");
         fprintf(stderr,"fileSize[%ld] time[%ld]usecs readSpeed/msec[%ld]\n",
           fileSize,timeInUSECS,(fileSize/(timeInUSECS/1000)));
         gDataBufSize = gDataBufSize/2;
       }
       gDataBufSize = savedDataBufSize;
-      break;
-    case 'b':
+    }
+    if(strcmp("bsr",sCur) == 0)
+    {
       printf("BlockDev raw speed test for [%d] sectors\n",TESTFAT_BDBM_SECS);
       lu_starttime(&gTFtv1);
       if(bdk->get_sectors_benchmark == NULL)
@@ -458,20 +517,36 @@ int main(int argc, char **argv)
       fprintf(stderr,"NumSecs[%d] time[%ld]usecs readSpeed/msec[%ld]\n",
         TESTFAT_BDBM_SECS,timeInUSECS,
         ((TESTFAT_BDBM_SECS*bdk->secSize)/(timeInUSECS/1000)));
-      break;
-    case 'R':
+    }
+    if(strcmp("bsw",sCur) == 0)
+    {
+      printf("BlockDev raw write speed test for [%d] sectors\n",TESTFAT_BDBMW_SECS);
+      if(bdk->get_sectors(bdk,0,TESTFAT_BDBMW_SECS,gDataBuf)!=0)
+        fprintf(stderr,"ERR:testfat: get_sectors failed\n");
+      lu_starttime(&gTFtv1);
+      if(bdk->put_sectors(bdk,0,TESTFAT_BDBMW_SECS,gDataBuf)!=0)
+        fprintf(stderr,"ERR:testfat: put_sectors failed\n");
+      lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"BlockDev raw write speed");
+      fprintf(stderr,"NumSecs[%d] time[%ld]usecs writeSpeed/msec[%ld]\n",
+        TESTFAT_BDBMW_SECS,timeInUSECS,
+        ((TESTFAT_BDBMW_SECS*bdk->secSize)/(timeInUSECS/1000)));
+    }
+    if(strcmp("reset",sCur) == 0)
+    {
       printf("Reseting blockdev [%s]\n",bdk->name);
       bdk->reset(bdk);
-      break;
-    case 'X':
+    }
+    if(strcmp("nfc",sCur) == 0)
+    {
       printf("enter normalfsfile to checksum:");
       scanf("%s", sBuf1);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
       testfat_normalfsfile_checksum(sBuf1);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"normalfsfile_checksum");
-      break;
-    case 'Y':
+    }
+    if(strcmp("ffc",sCur) == 0)
+    {
       printf("enter fatfsfile to checksum:");
       scanf("%s", sBuf1);
       fgetc(stdin);
@@ -481,8 +556,9 @@ int main(int argc, char **argv)
       else
         testfat_fatfsfile_checksum(&gUC, sBuf1);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"fatfsfile_checksum");
-      break;
-    case 'U':
+    }
+    if(strcmp("FUC",sCur) == 0)
+    {
       if(gFatUCFuncs == 0)
       {
         gFatUCFuncs = 1;
@@ -493,19 +569,18 @@ int main(int argc, char **argv)
         gFatUCFuncs = 0;
         printf("testfat:INFO: FatUserContext functions DESelected\n");
       }
-      break;
-    case 'k':
+    }
+    if(strcmp("seek",sCur) == 0)
+    {
       printf("enter file for fseek test:");
       scanf("%s",sBuf1);
       fgetc(stdin);
       lu_starttime(&gTFtv1);
       testfatuc_fileseektest(&gUC, sBuf1);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"seekTest");
-      break;
-    case 'E':
-      bExit = 1;
-      break;
     }
+    if(strcmp("exit",sCur) == 0)
+      bExit = 1;
   }while(!bExit);
 
 cleanup:  /*** cleanup ***/
