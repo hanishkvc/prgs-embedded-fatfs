@@ -13,8 +13,8 @@
 #include <utilsporta.h>
 #include <linuxutils.h>
 
-#ifdef BDHDD_USE_INSWK_DM270DMA
 #include <dm270utils.h>
+#ifdef BDHDD_USE_INSWK_DM270DMA
 
 static inline void bdhdd_inswk_dm270dma(uint32 port, uint16* buf, int count)
 {

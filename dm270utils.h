@@ -114,57 +114,57 @@
 #define DM270_DPSTR5			0x30A54
 #define DM270_EMIF_TEST			0x30A56
 
-#define DM270_SDRAM_BASE		((inw(DM270_DPSTR0))*(ONE_MB))
-#define DM270_EXMEM1_BASE		((inw(DM270_DPSTR1))*(ONE_MB))
+#define DM270_SDRAM_BASE		((PA_MEMREAD16(DM270_DPSTR0))*(ONE_MB))
+#define DM270_EXMEM1_BASE		((PA_MEMREAD16(DM270_DPSTR1))*(ONE_MB))
 
 static inline void gio_dir_input(unsigned short int nGIO)
 {
   if(nGIO > 31)
-    outw(inw(DM270_DIR2)|(1 << (nGIO - 32)), DM270_DIR2);
+    PA_MEMWRITE16(DM270_DIR2,PA_MEMREAD16(DM270_DIR2)|(1 << (nGIO - 32)));
   else if(nGIO > 15)
-    outw(inw(DM270_DIR1)|(1 << (nGIO - 16)), DM270_DIR1);
+    PA_MEMWRITE16(DM270_DIR1,PA_MEMREAD16(DM270_DIR1)|(1 << (nGIO - 16)));
   else
-   outw(inw(DM270_DIR0)|(1 << nGIO), DM270_DIR0);
+    PA_MEMWRITE16(DM270_DIR0,PA_MEMREAD16(DM270_DIR0)|(1 << nGIO));
 }
 
 static inline void gio_dir_output(unsigned int nGIO)
 {
   if(nGIO > 31)
-    outw(inw(DM270_DIR2) & (~(1 << (nGIO - 32))),DM270_DIR2);
+    PA_MEMWRITE16(DM270_DIR2,PA_MEMREAD16(DM270_DIR2) & (~(1 << (nGIO - 32))));
   else if(nGIO > 15)
-    outw(inw(DM270_DIR1) & (~(1 << (nGIO - 16))),DM270_DIR1);
+    PA_MEMWRITE16(DM270_DIR1,PA_MEMREAD16(DM270_DIR1) & (~(1 << (nGIO - 16))));
   else 
-    outw(inw(DM270_DIR0) & (~(1 << nGIO)),DM270_DIR0);
+    PA_MEMWRITE16(DM270_DIR0,PA_MEMREAD16(DM270_DIR0) & (~(1 << nGIO)));
 }
 
 static inline void gio_bit_clear(int nGIO)
 {
   if(nGIO > 31)
-    outw((1 << (nGIO - 32)),DM270_BITCLR2);
+    PA_MEMWRITE16(DM270_BITCLR2,(1 << (nGIO - 32)));
   else if(nGIO > 15)
-    outw((1 << (nGIO - 16)),DM270_BITCLR1);
+    PA_MEMWRITE16(DM270_BITCLR1,(1 << (nGIO - 16)));
   else
-    outw((1 << nGIO),DM270_BITCLR0);
+    PA_MEMWRITE16(DM270_BITCLR0,(1 << nGIO));
 }
 
 static inline void gio_bit_set(int nGIO)
 {
   if(nGIO > 31)
-    outw((1 << (nGIO - 32)),DM270_BITSET2);
+    PA_MEMWRITE16(DM270_BITSET2,(1 << (nGIO - 32)));
   else if(nGIO > 15)
-    outw((1 << (nGIO - 16)),DM270_BITSET1);
+    PA_MEMWRITE16(DM270_BITSET1,(1 << (nGIO - 16)));
   else
-    outw((1 << nGIO),DM270_BITSET0);
+    PA_MEMWRITE16(DM270_BITSET0,(1 << nGIO));
 }
 
 static inline int gio_bit_isset(int nGIO)
 {
   if (nGIO > 32)
-    return ((inw(DM270_BITSET2) & (0x1 << (nGIO - 32))) != 0x0);
+    return ((PA_MEMREAD16(DM270_BITSET2) & (0x1 << (nGIO - 32))) != 0x0);
   else if (nGIO > 15)
-    return ((inw(DM270_BITSET1) & (0x1 << (nGIO - 16))) != 0x0);
+    return ((PA_MEMREAD16(DM270_BITSET1) & (0x1 << (nGIO - 16))) != 0x0);
   else
-    return ((inw(DM270_BITSET0) & (0x1 << nGIO)) != 0x0);
+    return ((PA_MEMREAD16(DM270_BITSET0) & (0x1 << nGIO)) != 0x0);
 }
 
 #endif

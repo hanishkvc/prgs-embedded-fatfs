@@ -5,7 +5,7 @@
  * 
  */
 
-#define TESTFAT_PRGVER "v19Nov2004_1332"
+#define TESTFAT_PRGVER "v19Nov2004_2234"
 
 #include <sched.h>
 
@@ -13,6 +13,7 @@
 #include <errs.h>
 #include <bdfile.h>
 #include <bdhdd.h>
+#include <bdh8b16.h>
 #include <fatfs.h>
 #include <partk.h>
 #include <linuxutils.h>
@@ -21,6 +22,7 @@
 
 bdkT bdkBDFile;
 bdkT bdkHdd;
+bdkT bdkH8b16;
 
 struct TFat fat1;
 struct TFatBuffers fat1Buffers;
@@ -293,7 +295,7 @@ int main(int argc, char **argv)
   struct sched_param schedP;
   int32 savedDataBufSize;
   
-  printf("[%s]Usage: %s <hd|file> <bdGrp,bdDev,partNo> <resetBD|noResetBD> <forceMBR|noForceMBR> <DataBufSize> <y|n interactive> <ni-file>\n", 
+  printf("[%s]Usage: %s <hd|file|h8b16> <bdGrp,bdDev,partNo> <resetBD|noResetBD> <forceMBR|noForceMBR> <DataBufSize> <y|n interactive> <ni-file>\n", 
     TESTFAT_PRGVER, argv[0]);
   gDataBufSize = DATABUF_MAXSIZE;
   gDataBuf = (uint8*)dataBuf;
@@ -303,6 +305,7 @@ int main(int argc, char **argv)
   lu_starttime(&gTFtv1);
   bdfile_setup(&bdkBDFile);
   bdhdd_setup(&bdkHdd);
+  bdh8b16_setup(&bdkH8b16);
   if(argc < 7)
   {
     printf("Not enough args, quiting\n");
@@ -316,8 +319,10 @@ int main(int argc, char **argv)
   }
   else
     fprintf(stderr,"INFO:testfat: REALTIME Scheduling enabled\n");
-  if(argv[1][0] == 'h')
+  if(pa_strncmp(argv[1],"hd",2) == 0)
     bdk = &bdkHdd;
+  else if(pa_strncmp(argv[1],"h8b16",5) == 0)
+    bdk = &bdkH8b16;
   else
     bdk = &bdkBDFile;
   grpId = strtoul(argv[2],&pChar,0);

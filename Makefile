@@ -13,6 +13,12 @@ arm-elf-INSTALLPATH=/experiments/src/forBoard24-27Oct2004/uClinux-dist-2003/prop
 
 FATFSCFILES=fatfs.c fsutils.c partk.c bdfile.c bdhdd.c linuxutils.c
 FATFSHFILES=fatfs.h partk.h bdfile.h inall.h bdhdd.h linuxutils.h
+arm-elf-FATFS_CFILES=bdh8b16.c
+arm-elf-FATFS_HFILES=bdh8b16.h
+FATFS_CFILES=bdh8b16.c
+FATFS_HFILES=bdh8b16.h
+FATFSCFILES+=$($(CROSS)FATFS_CFILES)
+FATFSHFILES+=$($(CROSS)FATFS_HFILES)
 
 TESTFATS=$(CROSS)testfat $(CROSS)testfat-d $(CROSS)testfat_pm $(CROSS)testfat_pm-d
 TESTFATS=$(CROSS)testfat $(CROSS)testfat_pm $(CROSS)testfat_pm-d

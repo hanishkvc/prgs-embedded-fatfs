@@ -10,6 +10,13 @@ ToDo
 * have to update fatfs->getfileinfo so that it doesn't convert the 16bit
   unicode to 8bit ascii.
 
+06Dec2004
+* Generalized bdh8b16.x.
+* Fixed the dm270utils.h so that it uses PA_MEMREAD/WRITE routines
+  instead of inw/outw, thus solving the stupid warnings because of
+  change in definition of inw/outw between x86 and arm. This is also
+  the right thing as in dm270(or inturn arm) i/o is memory mapped.
+
 19Nov2004
 * Added seperate PA_MEMREAD/WRITE8/16 routines and made BDHDD_READ/WRITE
   pick from these for MEM based BDHDD_ATA accesses. So that those parts
@@ -17,6 +24,8 @@ ToDo
   instead of BDHDD_READ/WRITE.
   This change required for devices which are interfaced improperly
   like say a bus with only 16bit addresses.
+* Also added bdh8b16.x which allows accessing ATA devices connected
+  to a 8bitData addressable host but with 16bitData Addresses on its bus.
 
 11Nov2004
 * Added support for MemCARD3PCtlr based CF access in some DM270 boards.

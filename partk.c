@@ -27,8 +27,8 @@ int partk_get(pikT *pi, bdkT *bd, char *pBuf, int forceMbr)
     tVerify = buffer_read_uint16_le(&pCur);
     if(tVerify != 0xaa55)
     {
-      fprintf(stderr,"ERR:partk:NoMBR: 0xaa55 missing from offset %d\n",
-        PARTKEXECMARK_OFFSET);
+      fprintf(stderr,"ERR:partk:NoMBR: offset %d != 0xaa55, but [0x%x]\n",
+        PARTKEXECMARK_OFFSET,tVerify);
       return -ERROR_PARTK_NOMBR;
     }
     pCur=pBuf;
