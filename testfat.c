@@ -1,11 +1,11 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v05Oct2004_1610
+ * v10Oct2004_0019
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
-#define TESTFAT_PRGVER "v07Oct2004_1808"
+#define TESTFAT_PRGVER "v10Oct2004_0025"
 
 #include <sys/time.h>
 
@@ -181,21 +181,32 @@ int testfat_fileextract(struct TFatFsUserContext *uc, char *sFile, char *dFile)
 int main(int argc, char **argv)
 {
   int bExit;
-
-  printf("Usage: %s <y|n = interactive mode>\n", 
-    argv[0]);
+  bdkT *bdk;
+  
+  printf("[%s]Usage: %s <h_d|f_ile> <y|n = interactive mode>\n", 
+    TESTFAT_PRGVER, argv[0]);
 
   /*** initialization ***/
   testfat_starttime();
   bdfile_setup();
   bdhdd_setup();
-  fsutils_mount(&bdkHdd, &fat1, &fat1Buffers, 0);
-  fsutils_umount(&bdkHdd,&fat1);
-  fsutils_mount(&bdkBDFile, &fat1, &fat1Buffers, 0);
+  if(argc > 1)
+  {
+    if(argv[1][0] == 'h')
+      bdk = &bdkHdd;
+    else
+      bdk = &bdkBDFile;
+    fsutils_mount(bdk, &fat1, &fat1Buffers, 0);
+  }
+  else
+  {
+    printf("Not enough args, quiting\n");
+    exit(10);
+  }
   fatuc_init(&gUC, &fat1);
   testfat_stoptimedisp("Init");
 
-  if((argc > 1) && (argv[1][0] == 'n'))
+  if((argc > 2) && (argv[2][0] == 'n'))
   {
     testfat_starttime();
     testfat_checkfile(&gUC, argv[2]);

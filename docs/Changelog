@@ -2,6 +2,20 @@ Changelog - fatfs
 C Hanish Menon <hanishkvc>
 ---------------------------
 
+09Oct2004
+* Found that READSECTORSWITHOUTRETRIES (0x21) not supported
+* Also signature in LBAlow, LBAMid, LBAHigh, DEVLBA24, SECCNT not set
+  for IDENTIFYDEVICE in Bochs, VMWare
+* Updated get_sector logic such that it supports multiple sectors to be 
+  read properly even if it exceeds 256 sectors.
+  However currently it doesn't handle errors or buggy hardware properly
+
+08Oct2004
+* Initial support for get_sector, a simple mistake in code debugged
+
+07Oct2004
+* Started preliminary support for PC based HDD (bdhdd.x)
+
 05Oct2004
 * Added function pointers to TFat structure so that during fatfs_init
   Proper functions are assigned to these pointers depending on the

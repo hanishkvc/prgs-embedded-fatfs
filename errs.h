@@ -1,6 +1,6 @@
 /*
  * errs.h - header providing common error defines
- * v05Oct2004_1958
+ * v07Oct2004_1958
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */

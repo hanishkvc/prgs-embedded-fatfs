@@ -1,6 +1,6 @@
 /*
  * bdk.h - generic blockdev logic
- * v05Oct2004_1058
+ * v09Oct2004_2358
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -14,7 +14,7 @@
 
 typedef struct blockDevKT
 {
-  int (*init)(struct blockDevKT*);
+  int (*init)(struct blockDevKT*, char*);
   int (*get_sectors)(struct blockDevKT*, long, long, char*); 
   int (*cleanup)(struct blockDevKT*);
   char name[BDK_DEVNAMELEN];

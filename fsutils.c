@@ -1,6 +1,6 @@
 /*
  * fsutils.c - library for fs utility functions
- * v05Oct2004_1137
+ * v09Oct2004_2307
  * C Hanish Menon <hanishkvc>, 14july2004
  */
 #include <partk.h>
@@ -12,7 +12,7 @@ int fsutils_mount(bdkT *bd, struct TFat *fat, struct TFatBuffers *fatBuffers,
   pikT pInfo;
   int iRet,baseSec,totSecs;
   
-  if((iRet=bd->init(bd)) != 0)
+  if((iRet=bd->init(bd,(char*)fatBuffers->FBBuf)) != 0)
     return iRet;
   if(partk_get(&pInfo,bd,(char*)fatBuffers->FBBuf) != 0)
   {

@@ -1,0 +1,20 @@
+bdfile.c:  bd->u1 = (void*)open(BDFILE, O_RDONLY);
+bdfile.c:  if((int)bd->u1 == -1)
+bdfile.c:  bd->secSize = BDK_SECSIZE_512;
+bdfile.c:  bd->totSecs = 0xFFFFFFFF;
+bdfile.c:  res = lseek((int)bd->u1, sec*bd->secSize, SEEK_SET);
+bdfile.c:  toRead = count*bd->secSize;
+bdfile.c:    res = read((int)bd->u1, buf, toRead);
+bdfile.c:  close((int)bd->u1);
+bdhdd.c:  bd->secSize = BDK_SECSIZE_512;
+bdhdd.c:  bd->totSecs = 0xFFFFFFFF;
+fatfs.c:  res=fat->bd->get_sectors(fat->bd,fat->baseSec,1,fat->BBuf);
+fatfs.c:  return fat->bd->get_sectors(fat->bd, fatStartSec, fat->bs.fatSz,fat->FBuf); 
+fatfs.c:  return fat->bd->get_sectors(fat->bd,fat->baseSec+firstRootDirSecNum, 
+fatfs.c:      resGS=fat->bd->get_sectors(fat->bd,
+fatfs.c:      resGS=fat->bd->get_sectors(fat->bd,fat->baseSec+
+fsutils.c:  if((iRet=bd->init(bd)) != 0)
+fsutils.c:    totSecs = bd->totSecs;
+fsutils.c:    bd->cleanup(bd);
+fsutils.c:  if((iRet=bd->cleanup(bd)) != 0) return iRet;
+partk.c:  bd->get_sectors(bd,0,1,pBuf); 

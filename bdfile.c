@@ -1,6 +1,6 @@
 /*
  * bdfile.c - library for working with a linux loop based filesystem file
- * v05Oct2004_1059
+ * v09Oct2004_2319
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -17,7 +17,7 @@
 #include <errs.h>
 #include <utilsporta.h>
 
-int bdf_init(bdkT *bd)
+int bdf_init(bdkT *bd, char *secBuf)
 {
   bd->u1 = (void*)open(BDFILE, O_RDONLY);
   if((int)bd->u1 == -1)
