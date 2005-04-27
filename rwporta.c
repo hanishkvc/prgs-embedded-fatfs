@@ -1,6 +1,6 @@
 /*
  * rwporta.h - cross platform portability layer for read/write
- * v11Mar2005_1222
+ * v04Apr2005_1550
  * C Hanish Menon, 2003
  * 
  * v0.4 - 03Sep2003
@@ -21,9 +21,11 @@
  * - added buffer_write_uint8_[le|be][_noup]
  * v11Mar2005
  * - added buffer_write_uint[16|32]_le_noup
- *
+ * v01Apr2005
+ * - added some more missing buffer_xxxxxx_noup
+ *   added buffer_read_uint[16|32]_le_noup
  */
-#include "rwporta.h"
+#include <rwporta.h>
 
 uint32 file_read_uint32_le(FILE *fp)
 {
@@ -47,13 +49,13 @@ uint32 file_write_uint32_le(FILE *fp, uint32 data)
 {
 	uint8 temp;
 
-	temp = data & 0xff;
+	temp = (uint8)(data & 0xff);
 	fputc(temp, fp);
-	temp = (data & 0xff00) >> 8;
+	temp = (uint8)((data & 0xff00) >> 8);
 	fputc(temp, fp);
-	temp = (data & 0xff0000) >> 16;
+	temp = (uint8)((data & 0xff0000) >> 16);
 	fputc(temp, fp);
-	temp = (data & 0xff000000) >> 24;
+	temp = (uint8)((data & 0xff000000) >> 24);
 	fputc(temp, fp);
 
 	return data;
@@ -81,17 +83,19 @@ uint32 file_write_uint32_be(FILE *fp, uint32 data)
 {
 	uint8 temp;
 
-	temp = (data & 0xff000000) >> 24;
+	temp = (uint8)((data & 0xff000000) >> 24);
 	fputc(temp, fp);
-	temp = (data & 0xff0000) >> 16;
+	temp = (uint8)((data & 0xff0000) >> 16);
 	fputc(temp, fp);
-	temp = (data & 0xff00) >> 8;
+	temp = (uint8)((data & 0xff00) >> 8);
 	fputc(temp, fp);
-	temp = data & 0xff;
+	temp = (uint8)(data & 0xff);
 	fputc(temp, fp);
 
 	return data;
 }
+
+#ifndef OS_WINCE
 
 uint64 file_read_uint64_be(FILE *fp)
 {
@@ -127,6 +131,8 @@ uint64 file_write_uint64_be(FILE *fp, uint64 data)
 {
 	exit(-1);
 }
+
+#endif
 
 uint16 file_read_uint16_be(FILE *fp)
 {
@@ -182,7 +188,7 @@ uint16 file_read_uint16_le(FILE *fp)
 
 int32 file_read_buffer(FILE *fp, uint8 *buffer, uint32 size)
 {
-	int32 temp;
+	uint32 temp;
 
 	temp = fread(buffer, 1, size, fp);
 	if(temp != size)
@@ -195,7 +201,7 @@ int32 file_read_buffer(FILE *fp, uint8 *buffer, uint32 size)
 
 int32 file_write_buffer(FILE *fp, uint8 *buffer, uint32 size)
 {
-	int32 temp;
+	uint32 temp;
 
 	temp = fwrite(buffer, 1, size, fp);
 	if(temp != size)
@@ -213,7 +219,7 @@ uint32 buffer_read_uint32_be(uint8 **curPos)
 	uint32 integer;
 	uint8 temp;
 
-	//integer = 0;
+	/* integer = 0; */
 	temp = **curPos;
 	integer = temp << 24;
 	(*curPos)++;
@@ -233,13 +239,13 @@ uint32 buffer_write_uint32_be(uint8 **curPos, uint32 data)
 {
 	uint8 temp;
 
-	temp = (data & 0xff000000) >> 24;
+	temp = (uint8)((data & 0xff000000) >> 24);
 	**curPos = temp; (*curPos)++;
-	temp = (data & 0xff0000) >> 16;
+	temp = (uint8)((data & 0xff0000) >> 16);
 	**curPos = temp; (*curPos)++;
-	temp = (data & 0xff00) >> 8;
+	temp = (uint8)((data & 0xff00) >> 8);
 	**curPos = temp; (*curPos)++;
-	temp = data & 0xff;
+	temp = (uint8)(data & 0xff);
 	**curPos = temp; (*curPos)++;
 
 	return data;
@@ -270,13 +276,13 @@ uint32 buffer_write_uint32_le(uint8 **curPos, uint32 data)
 {
 	uint8 temp;
 
-	temp = data & 0xff;
+	temp = (uint8)(data & 0xff);
 	**curPos = temp; (*curPos)++;
-	temp = (data & 0xff00) >> 8;
+	temp = (uint8)((data & 0xff00) >> 8);
 	**curPos = temp; (*curPos)++;
-	temp = (data & 0xff0000) >> 16;
+	temp = (uint8)((data & 0xff0000) >> 16);
 	**curPos = temp; (*curPos)++;
-	temp = (data & 0xff000000) >> 24;
+	temp = (uint8)((data & 0xff000000) >> 24);
 	**curPos = temp; (*curPos)++;
 
 	return data;
@@ -288,6 +294,11 @@ uint32 buffer_write_uint32_le_noup(uint8 *curPos, uint32 data)
   return buffer_write_uint32_le(&tCurPos, data);
 }
 
+uint32 buffer_read_uint32_le_noup(uint8 *curPos)
+{
+  uint8 *tCurPos = curPos;
+  return buffer_read_uint32_le(&tCurPos);
+}
 
 uint16 buffer_write_uint16_be(uint8 **curPos, uint16 data)
 {
@@ -325,6 +336,12 @@ uint16 buffer_write_uint16_le(uint8 **curPos, uint16 data)
 	**curPos = temp; (*curPos)++;
 
 	return data;
+}
+
+uint16 buffer_read_uint16_le_noup(uint8 *curPos)
+{
+  uint8 *tCurPos = curPos;
+  return buffer_read_uint16_le(&tCurPos);
 }
 
 uint16 buffer_write_uint16_le_noup(uint8 *curPos, uint16 data)
@@ -468,7 +485,7 @@ uint32 buffer_read_bits_msbbased(uint8 **curPos, uint32 *curBitPos, int length)
   return curData;
 }
 
-char *buffer_read_buffertostring(uint8 **curPos, int length, uint8 *str, int strLen)
+char *buffer_read_buffertostring(uint8 **curPos, int length, char *str, int strLen)
 {
   int iCur, len;
 
@@ -481,17 +498,17 @@ char *buffer_read_buffertostring(uint8 **curPos, int length, uint8 *str, int str
     str[iCur] = **curPos;
     (*curPos)++;
   }
-  str[len]=(uint8)NULL;
+  str[len]=(uint8)PA_NULL;
   return str;
 }
 
-char *buffer_read_buffertostring_noup(uint8 *curPos, int length, uint8 *str, int strLen)
+char *buffer_read_buffertostring_noup(uint8 *curPos, int length, char *str, int strLen)
 {
   uint8 *tCurPos = curPos;
   return buffer_read_buffertostring(&tCurPos, length, str, strLen);
 }
 
-char *buffer_write_buffer(uint8 **curPos, uint8 *buf, int bufLen)
+uint8 *buffer_write_buffer(uint8 **curPos, uint8 *buf, int bufLen)
 {
   int iCur;
 
@@ -503,7 +520,7 @@ char *buffer_write_buffer(uint8 **curPos, uint8 *buf, int bufLen)
   return buf;
 }
 
-char *buffer_write_buffer_noup(uint8 *curPos, uint8 *buf, int bufLen)
+uint8 *buffer_write_buffer_noup(uint8 *curPos, uint8 *buf, int bufLen)
 {
   uint8 *tCurPos = curPos;
   return buffer_write_buffer(&tCurPos, buf, bufLen);

@@ -12,6 +12,74 @@ ToDo
   see to it that you update its parent directory entry(..) to correspond
   wrt the new location where it is.
 
+27Apr2005
+* Added support for maintaining and tracking the count of freeClusters in 
+  the filesystem. However this freeClusters count could be UNKNOWN/ GUESSED/
+  KNOWN. If the freeClusters is found as part of building the fat->freeCl
+  OptimizedFreeClusList logic then it will be a GUESSED value as it doesn't 
+  necessarily find all the free clusters in the filesystem. If it is found
+  using the fatfs_update_freeclusters logic then it is proper KNOWN value.
+* Also updated the file deletion and file writing logics, rather those parts
+  of these logic which directly manipulate the FATTable to also update this
+  new freeClusters count of fat structure in memory.
+* fatfs_update_freeclusters uses accessPattern support to be more efficient.
+* FIXME: Am not accounting for a single cluster as part of freeClusters cnt
+   when deleting file. Easy to fix but lazy for now.
+* On mounting this freeClusters count might get a GUESSED value assigned as
+  part of the OptiFreeClusList building logic provided there are freecluster
+  chunks of sufficient length as searched by the logic.
+  If required User can force the fatfs logic to assign/initialize the proper
+  or in other words KNOWN value by explicitly calling fatfs_update_freeclusters
+  or fatuc_getfreeclusters. 
+  However if the user is just interested in knowing the current value 
+  maintained by fatfs logic then he can call fatfs_get_freeclusters or 
+  fatuc_approx_getfreeclusters.
+* FIXME/NOTE: May add a flag to fsutils_mount to decide whether to leave
+  the freeClusters cnt at the GUESSED level or put a proper/KNOWN value.
+* Updated testfat.c to use the new fatuc_[approx_]getfreeclusters logic.
+* Fixed a corner case issue with __getoptifreecluslist which was recording 
+  any freeclus chunk too near to begining of the filesystem into oblivion 
+  (god knows where in memory???). 
+  This could also have been the reason has to why the fatfs logic was searching
+  for freecluster chunks too quickly sometimes. Especially easily noticed in
+  large harddisk partitions.
+* NOTE/FIXME: When writing a file into filesystem if it runs out of disk space,
+  this file could have some corruption. This issue can be fixed by checking if 
+  the FATTable cluster being written into or assigned to a file is free or 
+  already assigned. However as this would slow the write logic a bit, i mean a 
+  small bit I am not currently taking care of this. There Could also be a 
+  situation where the last few relatively small files written into a filesystem
+  running short of disk space is corrupted/overwritten by the newer files.
+  *Another way to avoid this is by seeing to it that the optifreeclus list does
+  not contain any overlaps.
+* When the FS has run out of space almost, even if a file is deleted to release
+  space back to the FS. This space was not being used to allocate to newer 
+  files unless we explicitly remount the FS. This issue has been fixed by 
+  updating the fat->freeCl.curMinAdjClusCnt from within __addto_freeclusters
+  when required.
+* Fixed the error message display logic in fsfreelist logic of testfat.c
+
+22Apr2005
+* Added support for Hinting to partlyMappedFATtable logic about 
+  access patterns in the filesystem. i.e whether the accesses are
+  going to be 1) Only Forward 2) Mostly Forward or 3) Balanced (i.e
+  bothr forward and backward access is equally likely)
+* The update_freecluslist logic uses this above flexibility to specify
+  or hint to fs that Its going to do FATFS_ACCESSPATTERN_ONLYFORWARD 
+  kind of access.
+* Also updated this optifreecluslist logic such that initially it
+  searches for (fsPartitionSize/32) size free chunks. And later
+  during each subsequent scan thro the FAT table it searches for
+  free chunks whose size are only 1/4 of that during the previous 
+  search. This should make the FatFs optiFreeClusList logic more
+  friendly for large partitions like (4GB or so).
+* Even applications can use the new hinting mechanism to inform fs as 
+  to they are going to only move forward in files or only backwards
+  or both ways is possible. Assuming that Files generally are going to 
+  be placed such that as one moves forward in a file, the corresponding 
+  data will be placed such that the logical address in the fs increases.
+  This hinting should help make fs metadata management more efficient.
+
 18Mar2005
 * InBrief
   * Fixed fatuc_move_dentry such that it takes care of putting LFN

@@ -12,7 +12,7 @@ LFLAGS += $($(CROSS)L_FLAGS)
 
 PORTACFILES=rwporta.c utilsporta.c rand.c
 PORTAOFILES=rwporta.o utilsporta.o rand.o
-PORTAHFILES=rwporta.h utilsporta.h errorporta.h rand.h
+PORTAHFILES=rwporta.h utilsporta.h errorporta.h rand.h paall.h
 TESTPATH=/mnt/temp1
 INSTALLPATH=/hanishkvc/samples/fatfs
 RELEASEPATH=/hanishkvc/samples/fatfs/fatfs-release

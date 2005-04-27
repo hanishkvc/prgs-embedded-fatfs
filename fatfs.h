@@ -1,6 +1,6 @@
 /*
  * fatfs.h - library for working with fat filesystem
- * v17Mar2005_1303
+ * v27Apr2005_1503
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
@@ -8,7 +8,7 @@
 #ifndef _FATFS_H_
 #define _FATFS_H_
 
-#define FATFS_LIBVER "v18Mar2005_1448"
+#define FATFS_LIBVER "v27Apr2005_2030"
 
 #include <rwporta.h>
 #include <bdk.h>
@@ -146,6 +146,16 @@ struct TFatFreeClusters
   uint32 curMinAdjClusCnt, fromClus;
 };
 
+#define FATFS_ACCESSPATTERN_BALANCED 0
+#define FATFS_ACCESSPATTERN_MOSTLYFORWARD 1
+#define FATFS_ACCESSPATTERN_ONLYFORWARD 2
+
+#define FATFS_FREECLUSTERS_VALUEMASK 0x0FFFFFFF
+#define FATFS_FREECLUSTERS_FLAGMASK  0xF0000000
+#define FATFS_FREECLUSTERS_UNKNOWN   0x10000000
+#define FATFS_FREECLUSTERS_GUESSED   0x20000000
+#define FATFS_FREECLUSTERS_KNOWN     0x40000000
+
 struct TFat
 {
   bdkT *bd;	
@@ -153,11 +163,12 @@ struct TFat
   uint8 *BBuf, *FBuf, *RDBuf;
   uint32 rdSize;
   struct TFatBootSector bs;
-  uint32 curFatNo, curFatStartEntry, curFatEndEntry, maxFatEntry;
+  uint32 curFatNo, curFatStartEntry, curFatEndEntry, maxFatEntry, accessPattern;
   uint32 curFatPartStartSecAbs, curFatEndSecAbs;
   uint32 cntDataClus,clusSize;
   int RDUpdated, fatUpdated;
   struct TFatFreeClusters freeCl;
+  uint32 freeClusters;
   /* Functions */
   int (*getfatentry)(struct TFat *fat, uint32 iEntry,
           uint32 *iValue, uint32 *iActual);
@@ -226,6 +237,11 @@ int fatfs_loadfileallsec_usefileinfo(struct TFat *fat,
 int fatfs_checkbuf_forloadfileclus(struct TFat *fat, uint32 bufLen);
 int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
       uint8 *buf, uint32 bufLen, uint32 *totalClusRead, uint32 *fromClus);
+int fatfs_get_freeclusters(struct TFat *fat, 
+      uint32 *FreeClusters, uint32 *Flag);
+void fatfs__addto_freeclusters(struct TFat *fat, int newFreeClusters);
+void fatfs__subfrom_freeclusters(struct TFat *fat, int newUsedClusters);
+int fatfs_update_freeclusters(struct TFat *fat);
 int fatfs_update_freecluslist(struct TFat *fat);
 int fatfs_getopti_freecluslist(struct TFat *fat, struct TClusList *cl,
       int *clSize, int32 clusRequired, uint32 *fromClusHint);
@@ -268,6 +284,10 @@ int fatuc__deletefile(struct TFatFsUserContext *uc, int fId);
 int fatuc_move_dentry(struct TFatFsUserContext *uc, char *src, 
       char* destPath, char16* u16FName, char* tBuf, int tBufLen);
 int fatuc_fclose(struct TFatFsUserContext *uc, int fId);
+int fatuc_getfreeclusters(struct TFatFsUserContext *uc, 
+      uint32 *FreeClusters, uint32 *Flag, int *ClusSize);
+int fatuc_approx_getfreeclusters(struct TFatFsUserContext *uc, 
+      uint32 *FreeClusters, uint32 *Flag, int *ClusSize);
 
 #endif
 

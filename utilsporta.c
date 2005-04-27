@@ -1,6 +1,6 @@
 /*
  * utilsporta.c - portability utility functions
- * v17Mar2005-1747
+ * v04Apr2005-1550
  * C Hanish Menon <hanishkvc>, 28Aug2004
  */
 
@@ -10,18 +10,58 @@
 #ifdef OS_LINUX
 #include <time.h>
 #endif
+
+#ifdef OS_WINDOWS
+#include <windows.h>
+extern HWND listboxMSG;
+#define PRINTSTR_LEN 1024
+char sPrint[PRINTSTR_LEN];
+int posSPrint;
+#endif
+
 #include <stdio.h>
 #define na_fprintf fprintf
 #define na_printstr printf
 
+#ifdef OS_WINDOWS
+int pa_windows_update_printstr(const char *str)
+{
+  int consumed, iRet;
+    
+  iRet=pa_strncpyEx(&sPrint[posSPrint],str,PRINTSTR_LEN-posSPrint,&consumed);
+  posSPrint+=consumed;
+  if(iRet < 0)
+    iRet = 0;
+  else if(sPrint[posSPrint-1] == '\n')
+    iRet = 0;
+  else 
+    iRet = -1;
+  if(iRet == 0)
+    posSPrint = 0;
+  return iRet;  
+}    
+#endif
+
 int pa_printstr(const char *str)
 {
+#ifdef OS_WINDOWS
+  if(pa_windows_update_printstr(str) == 0)
+    SendMessage(listboxMSG,LB_ADDSTRING,0,(long int)sPrint);
+  return 0;
+#else
   return na_printstr(str);
+#endif  
 }
 
 int pa_printstrErr(const char *str)
 {
+#ifdef OS_WINDOWS	
+  if(pa_windows_update_printstr(str) == 0)
+    SendMessage(listboxMSG,LB_ADDSTRING,0,(long int)sPrint);
+  return 0;
+#else  
   return na_fprintf(stderr,str);
+#endif
 }
 
 int pa_printint(const int data)
@@ -196,9 +236,9 @@ int pa_strnlen_c16(const char16 *src, int maxlen)
   return iCur;
 }
 
-int pa_strncpyEx(char *dest, char *src, uint32 len, int *iConsumed)
+int pa_strncpyEx(char *dest, const char *src, uint32 len, int *iConsumed)
 {
-  int iCur;
+  uint32 iCur;
 
   for(iCur = 0; iCur < len; iCur++)
   {
@@ -224,7 +264,7 @@ int pa_strncpy(char *dest, char *src, uint32 len)
 
 int pa_strncpyEx_c16(char16 *dest, char16 *src, uint32 len, int *iConsumed)
 {
-  int iCur;
+  uint32 iCur;
 
   for(iCur = 0; iCur < len; iCur++)
   {
@@ -244,7 +284,7 @@ int pa_strncpyEx_c16(char16 *dest, char16 *src, uint32 len, int *iConsumed)
 
 int pa_strncmp(char *dest, char *src, uint32 len)
 {
-  int iCur;
+  uint32 iCur;
 
   for(iCur = 0; iCur < len; iCur++)
   {
@@ -264,7 +304,7 @@ int pa_strncmp(char *dest, char *src, uint32 len)
 
 int pa_strncmp_c16(char16 *dest, char16 *src, uint32 len)
 {
-  int iCur;
+  uint32 iCur;
 
   for(iCur = 0; iCur < len; iCur++)
   {
@@ -306,7 +346,7 @@ unsigned long int pa_strtoul(const char *nptr, char **endptr, int base)
       if((*nptr < '0') || (*nptr > '9'))
         break;
       else
-        iCur = iCur*10+((int)*nptr-'0'); // 10 or base
+        iCur = iCur*10+((int)*nptr-'0'); /* 10 or base */
       if(iCur < pCur)
       {
         iCur = ERR_MAXUINT;
@@ -350,7 +390,7 @@ void pa_uint8TOhexstr(char *cDest, uint8 iInt)
 {
   cDest[0] = pa_intTOhexchar[(iInt & 0xf0) >> 4];
   cDest[1] = pa_intTOhexchar[(iInt & 0xf)];
-  cDest[2] = (char)NULL;
+  cDest[2] = (char)PA_NULL;
 }
 
 void pa_uint32TOhexstr(char *cDest, uint32 iInt)
@@ -363,7 +403,7 @@ void pa_uint32TOhexstr(char *cDest, uint32 iInt)
   cDest[5] = pa_intTOhexchar[(iInt & 0x00000f00) >> 8];
   cDest[6] = pa_intTOhexchar[(iInt & 0x000000f0) >> 4];
   cDest[7] = pa_intTOhexchar[(iInt & 0x0000000f)];
-  cDest[8] = (char)NULL;
+  cDest[8] = (char)PA_NULL;
 }
 
 int pa_uint32TOstr(char *cDest, int destLen, uint32 iInt, int *iConsumed)
@@ -386,7 +426,7 @@ int pa_uint32TOstr(char *cDest, int destLen, uint32 iInt, int *iConsumed)
     iCur = destLen-1;
   if(iCur >= 0)
   {
-    cDest[iCur] = (char)NULL;
+    cDest[iCur] = (char)PA_NULL;
     pa_swapstring(cDest,iCur);
   }
   *iConsumed = iCur;
@@ -424,7 +464,7 @@ int pa_bufferTOhexstr(char *dest, int destLen, char *src, int srcLen)
   if(destLen < (srcLen*2+1))
     return -ERR_INSUFFICIENTDEST;
   for(iCur=0;iCur<srcLen;iCur++)
-    pa_uint8TOhexstr(&dest[iCur*2],(int)src[iCur]);
+    pa_uint8TOhexstr(&dest[iCur*2],(uint8)src[iCur]);
   return 0;
 }
 
@@ -443,7 +483,7 @@ int pa_strc16Tostr_len(char *dest, char16 *src, int destLen)
     if(src[sCur++] == (char16)NULL)
       break;
   }
-  dest[dCur-1] = (char)NULL;
+  dest[dCur-1] = (char)PA_NULL;
   return 0;
 }
 
@@ -536,7 +576,7 @@ int pa_vsnprintf(char *dest,int destLen,char *format,void *args[])
           retVal = -ERR_INSUFFICIENTDEST;
           break;
         }
-        pa_uint8TOhexstr(&dest[iCur], (int)args[iArg]);
+        pa_uint8TOhexstr(&dest[iCur], (uint8)args[iArg]);
         iCur+=2;
       }
       format++; iArg++;
@@ -597,7 +637,7 @@ int pa_vsnprintf(char *dest,int destLen,char *format,void *args[])
   if(iCur >= destLen)
     iCur = destLen-1;
   if(iCur >= 0)
-    dest[iCur] = (char)NULL;
+    dest[iCur] = (char)PA_NULL;
   return retVal;
 }
 
@@ -611,10 +651,15 @@ int pa_vprintfEx(char *format,void *args[],char *dest,int destLen)
   return retVal;
 }
 
+#ifndef PA_PERROR
 int pa_perror(char *str)
 {
-  return pa_printstrErr(str);
+  int iRet;
+  iRet = pa_printstrErr(str);
+  pa_printstrErr("\n");
+  return iRet;
 }
+#endif
 
 int pa_isspace(char iCur)
 {

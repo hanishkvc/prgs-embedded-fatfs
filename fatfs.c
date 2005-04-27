@@ -1,6 +1,6 @@
 /*
  * fatfs.c - library for working with fat filesystem
- * v18Mar2005_1448
+ * v27Apr2005_2030
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  * Notes
@@ -13,6 +13,8 @@
 #include <inall.h>
 #include <fatfs.h>
 #include <errs.h>
+
+#define DEBUG_PRINT_OFL 10
 
 int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
       bdkT *bd, int baseSec, int totSecs)
@@ -70,14 +72,17 @@ int fatfs_init(struct TFat *fat, struct TFatBuffers *fBufs,
     return -ERROR_NOTSUPPORTED;
   }
   
+  fat->accessPattern = FATFS_ACCESSPATTERN_BALANCED;
   fat->fatUpdated = 0;
   res = fatfs_loadfat(fat,fat->curFatNo,0);
   if(res != 0) return res;
   if((res=fat->checkfatbeginok(fat)) != 0) return res;
   res = fat->loadrootdir(fat);
   if(res != 0) return res;
+  fat->freeClusters = FATFS_FREECLUSTERS_UNKNOWN;
   fat->freeCl.clSize = -1; fat->freeCl.fromClus = 0;
   fat->freeCl.curMinAdjClusCnt = fat->cntDataClus;
+  fat->freeCl.curMinAdjClusCnt >>= 3; /* divBy 8 */
   /* Even if this fails its ok as its required only if WRITE is used 
    * And Write will handle it appropriatly */
   fatfs_update_freecluslist(fat);
@@ -652,10 +657,17 @@ int fatfs_getfileinfo_fromdir(char *cFile, uint8 *dirBuf, uint32 dirBufSize,
 int fatfs_partlymappedfat_handle(struct TFat *fat, 
       uint32 iEntry, uint32 *pMappedEntry)
 {
+  uint32 newStartEntry;
+
   if((iEntry < fat->curFatStartEntry) || (iEntry > fat->curFatEndEntry))
   {
-    if(fatfs_loadfat(fat,fat->curFatNo,
-      iEntry-((fat->curFatEndEntry-fat->curFatStartEntry)/2)) != 0)
+    if(fat->accessPattern == FATFS_ACCESSPATTERN_BALANCED)
+      newStartEntry = iEntry-((fat->curFatEndEntry-fat->curFatStartEntry)/2);
+    else if(fat->accessPattern == FATFS_ACCESSPATTERN_ONLYFORWARD)
+      newStartEntry = iEntry;
+    else /* if(fat->accessPattern == FATFS_ACCESSPATTERN_MOSTLYFORWARD) */
+      newStartEntry = iEntry-((fat->curFatEndEntry-fat->curFatStartEntry)/4);
+    if(fatfs_loadfat(fat,fat->curFatNo,newStartEntry) != 0)
     {
       fprintf(stderr,"ERR:fatfs: failed partlymappedfat loading\n");
       return -ERROR_FAILED;
@@ -816,7 +828,7 @@ int fatfs__getoptifreecluslist(struct TFat *fat, struct TClusList *cl,
     iRet=fat->getfatentry(fat,iCurClus,&iValue,&iActualVal);
     if(iRet == -ERROR_FATFS_FREECLUSTER)
     {
-#if (DEBUG_PRINT_FATFS > 15)
+#if (DEBUG_PRINT_FATFS > 25)
       printf("fatfs:optifreecluslist: iCurClus[%ld] iActualVal[%ld]\n", 
         iCurClus, iActualVal);
 #endif
@@ -827,7 +839,7 @@ int fatfs__getoptifreecluslist(struct TFat *fat, struct TClusList *cl,
       }
       else
       {
-	if(cl[iCL].adjClusCnt >= minAdjClusCnt)
+	if((cl[iCL].adjClusCnt >= minAdjClusCnt) || (iCL == -1))
 	{
           iCL++;
           if(iCL >= *clSize) 
@@ -922,7 +934,7 @@ int fatfs_getopticluslist_usefileinfo(struct TFat *fat,
 int fatfs__freefilefatentries_usefileinfo(struct TFat *fat, 
       struct TFileInfo *fInfo, uint32 fromClus)
 {
-  uint32 iCurClus, iPrevClus;
+  uint32 iCurClus, iPrevClus, clusFreed=0;
   int iRet;
 
   if(fromClus == 0)
@@ -936,6 +948,8 @@ int fatfs__freefilefatentries_usefileinfo(struct TFat *fat,
     {
       if(iRet == -ERROR_FATFS_EOF) /* EOF reached */
       {
+        fatfs__addto_freeclusters(fat,clusFreed); 
+        /* FIXME: Have to account for this last free */
 	if(iPrevClus != 0)
           return fat->setfatentry(fat,iPrevClus,FATFS_FREECLUSTER);
 	return 0;
@@ -945,6 +959,7 @@ int fatfs__freefilefatentries_usefileinfo(struct TFat *fat,
     }
     iRet = fat->setfatentry(fat,iPrevClus,FATFS_FREECLUSTER);
     if(iRet != 0) return iRet;
+    clusFreed++;
     iPrevClus = iCurClus;
   }
   return -ERROR_UNKNOWN;
@@ -1004,6 +1019,7 @@ int fatfs__linknewsegment_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
   for(iCur=newSegStartClus;iCur<newSegEndClus;iCur++)
     if((iRet=fat->setfatentry(fat,iCur,iCur+1)) != 0) return iRet;
   if((iRet=fat->setfatentry(fat,newSegEndClus,FATFS_EOF)) != 0) return iRet;
+  fatfs__subfrom_freeclusters(fat,newSegEndClus-newSegStartClus+1);
   return 0;
 }
 
@@ -1158,16 +1174,158 @@ int fatfs_loadfileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
            &lastClusRead, fromClus);
 }
 
+int fatfs_get_freeclusters(struct TFat *fat, 
+      uint32 *FreeClusters, uint32 *Flag)
+{
+  *Flag = fat->freeClusters & FATFS_FREECLUSTERS_FLAGMASK;
+  *FreeClusters = fat->freeClusters & FATFS_FREECLUSTERS_VALUEMASK;
+  if(*Flag == FATFS_FREECLUSTERS_UNKNOWN)
+    return -ERROR_UNKNOWN;
+  return 0;
+}
+
+void fatfs__addto_freeclusters(struct TFat *fat, int newFreeClusters)
+{
+  uint32 iCurFreeClusters, iCurFlag;
+  if(fatfs_get_freeclusters(fat,&iCurFreeClusters,&iCurFlag) == 0)
+  {
+    fat->freeClusters += newFreeClusters;
+    fat->freeClusters &= FATFS_FREECLUSTERS_VALUEMASK;
+    fat->freeClusters |= iCurFlag;
+  }
+  if((fat->freeCl.curMinAdjClusCnt == 0) && (newFreeClusters>16))
+    fat->freeCl.curMinAdjClusCnt = 4;
+    
+#if (DEBUG_PRINT_FATFS > DEBUG_PRINT_OFL)
+  printf("INFO:fatfs:__addto_freeclusters:[%d] freeClusters[%ld] flag[%lx]\n",
+    newFreeClusters,
+    fat->freeClusters & FATFS_FREECLUSTERS_VALUEMASK, 
+    fat->freeClusters & FATFS_FREECLUSTERS_FLAGMASK);
+#endif
+}
+
+void fatfs__subfrom_freeclusters(struct TFat *fat, int newUsedClusters)
+{
+  uint32 iCurFreeClusters, iCurFlag;
+  if(fatfs_get_freeclusters(fat,&iCurFreeClusters,&iCurFlag) == 0)
+  {
+    if(iCurFreeClusters > newUsedClusters)
+      fat->freeClusters -= newUsedClusters;
+    else
+      fat->freeClusters = 0;
+    fat->freeClusters &= FATFS_FREECLUSTERS_VALUEMASK;
+    fat->freeClusters |= iCurFlag;
+  }
+#if (DEBUG_PRINT_FATFS > DEBUG_PRINT_OFL)
+  printf("INFO:fatfs:__subfrom_freeclusters:[%d] freeClusters[%ld] flag[%lx]\n",
+    newUsedClusters,
+    fat->freeClusters & FATFS_FREECLUSTERS_VALUEMASK, 
+    fat->freeClusters & FATFS_FREECLUSTERS_FLAGMASK);
+#endif
+}
+
+void fatfs__update_freeclusters(struct TFat *fat, 
+       uint32 iNewFreeClusters, uint32 iNewFlag)
+{
+  uint32 iCurFreeClusters, iCurFlag;
+
+  fatfs_get_freeclusters(fat,&iCurFreeClusters,&iCurFlag);
+#if (DEBUG_PRINT_FATFS > DEBUG_PRINT_OFL)
+  printf("INFO:fatfs:__update_freeclusters:B: freeClusters[%ld] flag[%lx]\n",
+    iCurFreeClusters, iCurFlag);
+  printf("INFO:fatfs:__update_freeclusters:B: newClusters[%ld] flag[%lx]\n",
+    iNewFreeClusters, iNewFlag);
+#endif
+  iNewFreeClusters &= ~FATFS_FREECLUSTERS_FLAGMASK;
+  if(iNewFlag == FATFS_FREECLUSTERS_KNOWN)
+  {
+    fat->freeClusters = iNewFreeClusters;
+    fat->freeClusters |= iNewFlag;
+  }
+  if(iNewFlag == FATFS_FREECLUSTERS_GUESSED)
+  {
+    if(iCurFlag == FATFS_FREECLUSTERS_UNKNOWN)
+    {
+      fat->freeClusters = iNewFreeClusters;
+      fat->freeClusters |= iNewFlag;
+    }
+    else if(iCurFlag == FATFS_FREECLUSTERS_GUESSED)
+    {
+      if(iNewFreeClusters > iCurFreeClusters)
+      {
+        fat->freeClusters = iNewFreeClusters;
+        fat->freeClusters |= iNewFlag;
+      }
+    }
+    else
+    {
+      if(iNewFreeClusters > iCurFreeClusters)
+        pa_printstrErr("WARN:fatfs__update_freeclusters: freeClusters calculation seems to be off\n");
+    }
+  }
+#if (DEBUG_PRINT_FATFS > DEBUG_PRINT_OFL)
+  printf("INFO:fatfs:__update_freeclusters:E: freeClusters[%ld] flag[%lx]\n",
+    fat->freeClusters & FATFS_FREECLUSTERS_VALUEMASK, 
+    fat->freeClusters & FATFS_FREECLUSTERS_FLAGMASK);
+#endif
+}
+
+#define FATFS_TEMP_CLUSLIST_SIZE 8
+
+int fatfs_update_freeclusters(struct TFat *fat)
+{
+  int clSize; 
+  int iCur, res;
+  uint32 fromClus, totalClus;
+  struct TClusList cl[FATFS_TEMP_CLUSLIST_SIZE];
+  uint32 oldAccessPattern;
+
+  oldAccessPattern = fat->accessPattern;
+  fat->accessPattern = FATFS_ACCESSPATTERN_ONLYFORWARD;
+  fromClus = 0;
+  totalClus = 0;
+  do
+  {
+    clSize = FATFS_TEMP_CLUSLIST_SIZE; 
+    res = fatfs__getoptifreecluslist(fat, cl, &clSize, 0, &fromClus);
+    for(iCur=0; iCur < clSize; iCur++)
+    {
+      totalClus += cl[iCur].adjClusCnt+1;
+#if (DEBUG_PRINT_FATFS > 15)
+      printf("INFO:fatfs:update_freeclusters: baseClus[%ld] adjClusCnt[%ld] next fromClus[%ld]\n",
+        cl[iCur].baseClus, cl[iCur].adjClusCnt, fromClus);
+#endif
+    }
+    if((res!=0) && ((res!=-ERROR_TRYAGAIN) || (res!=-ERROR_NOMORE)))
+    {
+      fprintf(stderr,"ERR:fatfs:update_freeclusters: FATchain maybe invalid\n");
+      fat->accessPattern = oldAccessPattern;
+      return -ERROR_FAILED;
+    }
+  }while(res != 0);
+  fatfs__update_freeclusters(fat,totalClus,FATFS_FREECLUSTERS_KNOWN);
+#if (DEBUG_PRINT_FATFS > 5)
+  printf("INFO:fatfs:update_freeclusters: TotalFREEspace [%ld]\n",
+    totalClus*fat->clusSize);
+#endif
+  fat->accessPattern = oldAccessPattern;
+  return 0;
+}
+
 int fatfs_update_freecluslist(struct TFat *fat)
 {
   int resOCL;
+  uint32 oldAccessPattern;
+  uint32 iCur, iCurFreeClusters;
 
   if((fat->freeCl.clSize == -1) && (fat->freeCl.fromClus == 0))
   {
     if(fat->freeCl.curMinAdjClusCnt == 0)
       return -ERROR_NOMORE;
-    fat->freeCl.curMinAdjClusCnt >>= 3; /* divBy 8 */
+    fat->freeCl.curMinAdjClusCnt >>= 2; /* divBy 4 */
   }
+  oldAccessPattern = fat->accessPattern;
+  fat->accessPattern = FATFS_ACCESSPATTERN_ONLYFORWARD;
   fat->freeCl.clIndex = 0;
   fat->freeCl.clSize = FATFS_FREECLUSLIST_SIZE; 
   resOCL = fatfs__getoptifreecluslist(fat, fat->freeCl.cl, &fat->freeCl.clSize, fat->freeCl.curMinAdjClusCnt, &fat->freeCl.fromClus);
@@ -1180,6 +1338,14 @@ int fatfs_update_freecluslist(struct TFat *fat)
       resOCL = -ERROR_TRYAGAIN;
     }
   }
+  else
+  {
+    iCurFreeClusters = 0;
+    for(iCur=0;iCur<fat->freeCl.clSize;iCur++)
+      iCurFreeClusters+=fat->freeCl.cl[iCur].adjClusCnt;
+    fatfs__update_freeclusters(fat,iCurFreeClusters,FATFS_FREECLUSTERS_GUESSED);
+  }
+  fat->accessPattern = oldAccessPattern;
   return resOCL;
 }
 
@@ -1230,6 +1396,8 @@ int fatfs_getopti_freecluslist(struct TFat *fat, struct TClusList *cl,
 #undef FATFS__STOREFILECLUS_SAFE  
 #define FATFS_WRITENEW_MINADJCLUSCNT 0
 #define FATFS__STOREFILECLUS_FROMCLUS_ALLOC FATFS_EOF
+#define FATFS_SFC_CLSIZE 16
+#define FATFS_SFC_OFCL_CLSIZE 16
 
 int fatfs__storefileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo, 
       uint8 *buf, uint32 bytesToWrite, uint32 *totalClusWriten, 
@@ -1237,7 +1405,7 @@ int fatfs__storefileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
 {
   uint32 noSecs, bytesWriten, oldLastClus;
   int32 totalPosClus2Write, noClus2Write;
-  struct TClusList cl[16];
+  struct TClusList cl[FATFS_SFC_CLSIZE];
   int resOCL, resGS, clSize, iCur, bAllWriten;
 
 #ifdef FATFS_FORCEARGCHECK_FIXME
@@ -1265,7 +1433,7 @@ int fatfs__storefileclus_usefileinfo(struct TFat *fat, struct TFileInfo *fInfo,
     goto fatfs__storefileclus_fromclus_alloc;
   do
   {
-    clSize = 16; 
+    clSize = FATFS_SFC_CLSIZE; 
     resOCL = fatfs_getopticluslist_usefileinfo(fat, fInfo, cl, &clSize, 
       fromClus);
     if((resOCL != 0) && (resOCL != -ERROR_TRYAGAIN))
@@ -1317,7 +1485,7 @@ fatfs__storefileclus_fromclus_alloc:
   *fromClus = 0; 
   do
   {
-    clSize = 16; 
+    clSize = FATFS_SFC_OFCL_CLSIZE; 
     resOCL = fatfs_getopti_freecluslist(fat, cl, &clSize, totalPosClus2Write, fromClus);
     if((resOCL != 0) && (resOCL != -ERROR_TRYAGAIN))
       break;
@@ -2305,5 +2473,27 @@ int fatuc_fclose(struct TFatFsUserContext *uc, int fId)
     return 0;
   }
   return -ERROR_INVALID;
+}
+
+int fatuc_getfreeclusters(struct TFatFsUserContext *uc, 
+      uint32 *FreeClusters, uint32 *Flag, int *ClusSize)
+{
+  *ClusSize = uc->fat->clusSize;
+  if(fatfs_get_freeclusters(uc->fat,FreeClusters,Flag) == 0)
+  {
+    if(*Flag == FATFS_FREECLUSTERS_KNOWN)
+      return 0;
+  }
+  fatfs_update_freeclusters(uc->fat);
+  if(fatfs_get_freeclusters(uc->fat,FreeClusters,Flag) == 0)
+    return 0;
+  return -ERROR_FAILED;
+}
+
+int fatuc_approx_getfreeclusters(struct TFatFsUserContext *uc, 
+      uint32 *FreeClusters, uint32 *Flag, int *ClusSize)
+{
+  *ClusSize = uc->fat->clusSize;
+  return fatfs_get_freeclusters(uc->fat,FreeClusters,Flag);
 }
 

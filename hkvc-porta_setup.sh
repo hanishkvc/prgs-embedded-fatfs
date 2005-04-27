@@ -9,10 +9,10 @@ portaPath=/hanishkvc/work/kvctek/projs/porta
 for curFile in $@; do
 
 createLink=0
-diff $portaPath/$curFile $curFile
+diff -u $curFile $portaPath/$curFile
 if [ $? -ne 0 ]; then
   read -p "[$curFile] differs, press any key to see difference"
-  diff $portaPath/$curFile $curFile | less
+  diff -u $curFile $portaPath/$curFile | less
   read -p "remove [$curFile] file and link to porta base,[yn]" uInput
   echo "You typed [$uInput]"
   if [ $uInput == "y" ]; then
@@ -32,3 +32,4 @@ else
 fi
 
 done
+

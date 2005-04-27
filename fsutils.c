@@ -35,6 +35,11 @@ int fsutils_mount(bdkT *bd, int bdGrpId, int bdDevId, int partNo,
     bd->cleanup(bd);
     return iRet;
   }
+#if 0
+  /* FIXME: As of now forcing the freeclusters in fat to be upto date 
+   * later have to add a flag to decide whether to do this or not */
+  fatfs_update_freeclusters(fat);
+#endif
   return 0;
 }
 

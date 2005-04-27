@@ -7,11 +7,13 @@
 #ifndef _UTILS_PORTA_H_
 #define _UTILS_PORTA_H_
 
+#include <paall.h>
+
 #define char16 unsigned short int
 #define uint8 unsigned char
 #define int32 long int
 #define uint32 unsigned long int
-
+#define PA_NULL 0
 
 int pa_printstr(const char *str);
 int pa_printstrErr(const char *str);
@@ -32,7 +34,7 @@ void pa_memset(void *vdest, int ival, uint32 len);
 void pa_memcpy(void *dest, void *src, uint32 len);
 int pa_strnlen(const char *src, int maxlen);
 int pa_strnlen_c16(const char16 *src, int maxlen);
-int pa_strncpyEx(char *dest, char *src, uint32 len, int *iConsumed);
+int pa_strncpyEx(char *dest, const char *src, uint32 len, int *iConsumed);
 int pa_strncpy(char *dest, char *src, uint32 len);
 int pa_strncpyEx_c16(char16 *dest, char16 *src, uint32 len, int *iConsumed);
 int pa_strncmp(char *dest, char *src, uint32 len);
@@ -54,12 +56,13 @@ int pa_strTostrc16_len(char16 *dest, char *src, int destLen);
 int pa_vsnprintf(char *dest, int destLen, char *format, void *args[]);
 int pa_vprintfEx(char *format, void *args[], char *dest, int destLen);
 
+#ifndef PA_PERROR
 int pa_perror(char *str);
+#endif
 
 int pa_isspace(char iCur);
 int pa_isdigit(char iCur);
 
-#define OS_LINUX 1
 void pa_getdatetime(int32* yearSince1900, uint8* month, uint8* day, 
        uint8* hr, uint8* min, uint8* sec);
 

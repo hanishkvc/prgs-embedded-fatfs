@@ -1,11 +1,11 @@
 /*
  * testfat.c - a test program for fat filesystem library
- * v17Mar2005_1448
+ * v27Apr2005_2030
  * C Hanish Menon <hanishkvc>, 14july2004
  * 
  */
 
-#define TESTFAT_PRGVER "v18Mar2005_1448"
+#define TESTFAT_PRGVER "v27Apr2005_2030"
 #undef NO_REALTIME_SCHED  
 
 #include <sched.h>
@@ -92,7 +92,17 @@ int testfat_dirlisting(struct TFatFsUserContext *uc, char *dir)
   return 0;
 }
 
-#define CLUSLIST_SIZE 1
+#if 0
+/* 27Apr2005: Better and simpler logic except for DEBUG_LEVEL issue */
+/* Works if fatfs library is compiled with DEBUG_PRINT_FATFS > 15 */
+int testfat_fsfreelist(struct TFatFsUserContext *uc)
+{
+  return fatfs_update_freeclusters(uc->fat);
+}
+
+#else
+
+#define CLUSLIST_SIZE 8
 
 int testfat_fsfreelist(struct TFatFsUserContext *uc)
 {
@@ -114,7 +124,7 @@ int testfat_fsfreelist(struct TFatFsUserContext *uc)
       printf("Optimised FreeClusList baseClus[%ld] adjClusCnt[%ld] next fromClus[%ld]\n",
         cl[iCur].baseClus, cl[iCur].adjClusCnt, fromClus);
     }
-    if((res!=0) && (res!=-ERROR_TRYAGAIN))
+    if((res!=0) && ((res!=-ERROR_TRYAGAIN) || (res!=-ERROR_NOMORE)))
     {
       fprintf(stderr,"ERR:testfat:fsfreelist:FATchain may not be valid\n");
       return -1;
@@ -123,6 +133,8 @@ int testfat_fsfreelist(struct TFatFsUserContext *uc)
   printf("TotalFREEspace [%ld]\n",totalClus*uc->fat->clusSize);
   return 0;
 }
+
+#endif
 
 int testfat_checkfile(struct TFatFsUserContext *uc, char *cFile)
 {
@@ -435,7 +447,7 @@ int main(int argc, char **argv)
     printf("(nfc)normalfsfile checksum (ffc)fatfsfile checksum\n");
     printf("(FUC)FatUserContext Funcs (seek)seektest (fsfreelist)FilesysFreelist\n");
     printf("(cpff)fileExtract2fatfs (del) deletefile (mkdir) mkdir (move) move\n");
-    printf("(exit) Exit\n");
+    printf("(afree)approxFreeSpace (free)FreeSpace (exit) Exit\n");
     scanf("%s",sCur); fgetc(stdin);
     if(strcmp("ls",sCur) == 0)
     {
@@ -650,6 +662,26 @@ int main(int argc, char **argv)
       else
         testfatuc_move(&gUC, sBuf1, sBuf2, t16LFN);
       lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"move");
+    }
+    {
+    uint32 FreeClusters, Flag;
+    int ClusSize;
+    if(strcmp("afree",sCur) == 0)
+    {
+      lu_starttime(&gTFtv1);
+      fatuc_approx_getfreeclusters(&gUC,&FreeClusters,&Flag,&ClusSize);
+      lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"approxFreeSpace");
+      printf("INFO:testfat:aFree: Clusters[%ld] x ClusSize[%d], Flag[%lx]\n",
+        FreeClusters,ClusSize,Flag);
+    }
+    if(strcmp("free",sCur) == 0)
+    {
+      lu_starttime(&gTFtv1);
+      fatuc_getfreeclusters(&gUC,&FreeClusters,&Flag,&ClusSize);
+      lu_stoptimedisp(&gTFtv1,&gTFtv2,&timeInUSECS,"freeSpace");
+      printf("INFO:testfat:Free: Clusters[%ld] x ClusSize[%d], Flag[%lx]\n",
+        FreeClusters,ClusSize,Flag);
+    }
     }
     if(strcmp("exit",sCur) == 0)
       bExit = 1;
