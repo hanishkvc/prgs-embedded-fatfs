@@ -28,6 +28,7 @@ making these chipset specific initialization won't be that difficult
 for anyone.
 
 
+
 Tests
 ------
 I have tested these logic on 
@@ -38,6 +39,50 @@ I have tested these logic on
 Both Fat16 and Fat32 has been tested.
 
 ThankU2Fedtec for some of the embedded systems used for testing.
+
+
+
+the Need
+---------
+
+The linux fat fs driver reading only 1 sector/cluster at a time, even when
+there is a bunch of adjacent clusters that could be read and things made
+efficient and faster.
+
+Having access patterns which run in only one direction, and still not
+being able to hint the linux fs logic about the same in a useful manner
+and get it to do things better.
+
+Wanting to ensure that filesystem is in a consistent state after writes,
+in a user controlled predictable manner, so that power failures doesnt mess
+with the filesystem.
+
+Wanting to finetune the bus timings and ike out good performance out of file
+system access, so that the system is free to do other things fast enough.
+
+Have some fun exploring few ideas wrt filesystems including fat, by starting
+from scratch .
+
+Have a portable logic which can be used either in a bootloader or a rtos
+or linux, with minimal effort.
+
+Wanting to work with huge files beyond 2|4GB in fat fs, especially in a
+closed ecosystem.
+
+
+
+Side Notes
+-----------
+
+Because of this and few of my other design a new wheel ways, had some fun
+discussions with the linux fat fs developer as well as one of the linux
+network filters developer, at a later date, when I got a chance to meet them.
+
+Also got a memory cards controller chipset logic to be updated to become more
+flexible and faster by getting its logic to become better behaved and adaptable
+device on flexible generic memory busses, as well as by ensuring that it uses
+principles of double/multi buffering internally to speed up things.
+
 
 
 INSTALL
